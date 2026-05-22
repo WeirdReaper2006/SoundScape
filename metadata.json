@@ -2,5 +2,6 @@
   "name": "SoundScape",
   "description": "An offline local audio music player with a beautiful dark Spotify-inspired design supporting FLAC, MP3, M4A, playlists, and seamless background playback.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": [],
+  "version": "1.0-test"
 }
