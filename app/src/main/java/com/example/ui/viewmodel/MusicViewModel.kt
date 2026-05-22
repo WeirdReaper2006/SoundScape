@@ -312,12 +312,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             isLoadingSongs = true
             try {
                 val foundLocal = repository.getLocalSongs()
-                // If local songs are not empty, combine them with curated ones, otherwise fall back to curated ones
-                val combined = foundLocal + repository.curatedSongs
-                allSongs = sortSongsList(combined, activeSortCriteria, activeSortOrder)
+                allSongs = sortSongsList(foundLocal, activeSortCriteria, activeSortOrder)
                 searchResults = allSongs
             } catch (e: Exception) {
-                allSongs = sortSongsList(repository.curatedSongs, activeSortCriteria, activeSortOrder)
+                allSongs = emptyList()
                 searchResults = allSongs
             } finally {
                 applySortingAndFiltering()

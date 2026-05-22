@@ -17,69 +17,6 @@ class MusicRepository(
     private val musicDao: MusicDao
 ) {
 
-    val curatedSongs = listOf(
-        Song(
-            id = "curated_1",
-            title = "Acoustic Breeze",
-            artist = "SoundHelix Elite",
-            album = "Chill Acoustic Vol. 1",
-            path = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-            durationMs = 372000L,
-            albumArtUri = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500",
-            isLocal = false,
-            mimeType = "audio/mp3",
-            dateAdded = System.currentTimeMillis()
-        ),
-        Song(
-            id = "curated_2",
-            title = "Lofi Study Beats",
-            artist = "SoundHelix Elite",
-            album = "Relaxing Study Series",
-            path = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-            durationMs = 423000L,
-            albumArtUri = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500",
-            isLocal = false,
-            mimeType = "audio/mp3",
-            dateAdded = System.currentTimeMillis() + 1000
-        ),
-        Song(
-            id = "curated_3",
-            title = "Sweet Dreams Lo-Fi",
-            artist = "SoundHelix Elite",
-            album = "Bedroom Beats",
-            path = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-            durationMs = 344000L,
-            albumArtUri = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=500",
-            isLocal = false,
-            mimeType = "audio/mp3",
-            dateAdded = System.currentTimeMillis() + 2000
-        ),
-        Song(
-            id = "curated_4",
-            title = "Synthwave Sunset",
-            artist = "SoundHelix Elite",
-            album = "Retro Horizon",
-            path = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-            durationMs = 302000L,
-            albumArtUri = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500",
-            isLocal = false,
-            mimeType = "audio/mp3",
-            dateAdded = System.currentTimeMillis() + 3000
-        ),
-        Song(
-            id = "curated_5",
-            title = "Deep Focus Ambient",
-            artist = "SoundHelix Elite",
-            album = "Cosmic Waves",
-            path = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-            durationMs = 351000L,
-            albumArtUri = "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=500",
-            isLocal = false,
-            mimeType = "audio/mp3",
-            dateAdded = System.currentTimeMillis() + 4000
-        )
-    )
-
     suspend fun getLocalSongs(): List<Song> = withContext(Dispatchers.IO) {
         val songList = mutableListOf<Song>()
         
