@@ -1,0 +1,48 @@
+# SoundScape .gitignore
+
+# Gradle Files and Build Folders
+.gradle/
+build/
+app/build/
+.build-outputs/
+captures/
+gradlew
+gradlew.bat
+
+# Local configuration files
+local.properties
+.env
+.env.local
+.env.*.local
+
+# Keystore and Keys
+*.keystore
+*.jks
+*.p8
+*.p12
+*.key
+# Ensure we do NOT ignore the base64-encoded debug keystore
+!debug.keystore.base64
+
+# Android Studio / IntelliJ IDEA files
+.idea/
+*.iml
+.navigation/
+.externalNativeBuild/
+.cxx/
+xslt-filter.xml
+workspace.xml
+
+# System & OS Files
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.temp
+
+# Log files
+*.log
+
+# AI / Developer Assistant Logs
+memory.md
+changes.md
