@@ -212,4 +212,10 @@ class MusicRepository(
             }
         }
     }
+
+    val songOverrides: Flow<List<SongOverrideEntity>> = musicDao.getOverrides()
+
+    suspend fun saveSongOverride(songId: String, title: String, artist: String, album: String) = withContext(Dispatchers.IO) {
+        musicDao.insertOverride(SongOverrideEntity(songId, title, artist, album))
+    }
 }

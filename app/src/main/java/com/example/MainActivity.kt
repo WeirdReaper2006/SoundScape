@@ -42,11 +42,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,6 +118,71 @@ fun rememberAlbumArt(song: Song): Any? {
             value = R.drawable.ic_launcher_foreground
         }
     }.value
+}
+
+@Composable
+fun SoundScapeArtwork(
+    song: Song?,
+    modifier: Modifier
+) {
+    val context = LocalContext.current
+    var isError by remember(song?.id) { mutableStateOf(false) }
+    val albumArtData = song?.let { rememberAlbumArt(it) }
+
+    if (song == null || isError || albumArtData == null || albumArtData == R.drawable.ic_launcher_foreground) {
+        val title = song?.title ?: "Unknown"
+        val artist = song?.artist ?: "Track"
+        
+        val gradientPresets = remember {
+            listOf(
+                listOf(Color(0xFF00C6FF), Color(0xFF0072FF)), // Neon Blue
+                listOf(Color(0xFFF12711), Color(0xFFF5AF19)), // Sunset Orange
+                listOf(Color(0xFF11998e), Color(0xFF38ef7d)), // Emerald Green
+                listOf(Color(0xFF7F00FF), Color(0xFFFF007F)), // Purple to Pink
+                listOf(Color(0xFF3A1C71), Color(0xFFD76D77)), // Deep Space Violet
+                listOf(Color(0xFFED213A), Color(0xFF93291E)), // Crimson Red
+                listOf(Color(0xFFFC466B), Color(0xFF3F5EFB)), // Pink to Blue
+                listOf(Color(0xFF0F2027), Color(0xFF2C5364)), // Midnight Slate
+                listOf(Color(0xFF8A2387), Color(0xFFE94057))  // Royal Sunset
+            )
+        }
+        
+        val brush = remember(title, artist) {
+            val hash = (title + artist).hashCode()
+            val index = Math.abs(hash % gradientPresets.size)
+            Brush.linearGradient(gradientPresets[index])
+        }
+
+        Box(
+            modifier = modifier
+                .background(brush),
+            contentAlignment = Alignment.Center
+        ) {
+            val firstLetter = remember(title) {
+                title.trim().take(1).uppercase()
+            }
+            Text(
+                text = if (firstLetter.all { it.isLetterOrDigit() }) firstLetter else "🎵",
+                color = Color.White.copy(alpha = 0.9f),
+                fontWeight = FontWeight.Bold,
+                fontSize = (modifier.toString().hashCode().let { 16.sp }), // safe default font size
+                textAlign = TextAlign.Center
+            )
+        }
+    } else {
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(albumArtData)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Crop,
+            onError = {
+                isError = true
+            }
+        )
+    }
 }
 
 fun getFolderSearchFilterFromUri(context: android.content.Context, uri: android.net.Uri): String {
@@ -420,6 +487,27 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                 onDismiss = { showQueueOverlay = false }
             )
         }
+
+        // Edit Metadata Override Dialog
+        viewModel.showEditTagsDialog?.let { song ->
+            EditSongTagsDialog(
+                song = song,
+                onDismiss = { viewModel.showEditTagsDialog = null },
+                onConfirm = { title, artist, album ->
+                    viewModel.saveSongOverride(song.id, title, artist, album)
+                    viewModel.showEditTagsDialog = null
+                    Toast.makeText(context, "Metadata overridden successfully!", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        // Import M3U Playlist Dialog
+        if (viewModel.showImportM3UDialog) {
+            ImportM3UDialog(
+                viewModel = viewModel,
+                onDismiss = { viewModel.showImportM3UDialog = false }
+            )
+        }
     }
 }
 
@@ -455,18 +543,12 @@ fun MiniPlayerBar(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(rememberAlbumArt(song))
-                        .error(R.drawable.ic_launcher_foreground)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Album image",
+                SoundScapeArtwork(
+                    song = song,
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(SpotifyLightGray),
-                    contentScale = ContentScale.Crop
+                        .background(SpotifyLightGray)
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -637,16 +719,11 @@ fun HomeScreen(
                                     .clickable { viewModel.playSong(song) },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(localContext)
-                                        .data(rememberAlbumArt(song))
-                                        .error(R.drawable.ic_launcher_foreground)
-                                        .build(),
-                                    contentDescription = "Album image",
+                                SoundScapeArtwork(
+                                    song = song,
                                     modifier = Modifier
                                         .size(60.dp)
-                                        .clip(RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 0.dp, bottomEnd = 0.dp)),
-                                    contentScale = ContentScale.Crop
+                                        .clip(RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 0.dp, bottomEnd = 0.dp))
                                 )
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column(
@@ -919,7 +996,8 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
                         song = song,
                         onClick = { viewModel.playSong(song, filteredList) },
                         onAddToPlaylist = { viewModel.showAddToPlaylistDialog = song },
-                        onAddToQueue = { viewModel.addToQueue(song) }
+                        onAddToQueue = { viewModel.addToQueue(song) },
+                        onEditTags = { viewModel.showEditTagsDialog = song }
                     )
                 }
                 item {
@@ -1106,7 +1184,8 @@ fun LibraryScreen(
                                 song = song,
                                 onClick = { viewModel.playSong(song, viewModel.allSongs) },
                                 onAddToPlaylist = { viewModel.showAddToPlaylistDialog = song },
-                                onAddToQueue = { viewModel.addToQueue(song) }
+                                onAddToQueue = { viewModel.addToQueue(song) },
+                                onEditTags = { viewModel.showEditTagsDialog = song }
                             )
                         }
                         item {
@@ -1124,11 +1203,23 @@ fun LibraryScreen(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("Create custom offline playlists", color = SpotifyTextSecondary)
                             Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = onCreatePlaylistClick,
-                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Create Playlist", color = Color.Black)
+                                Button(
+                                    onClick = onCreatePlaylistClick,
+                                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+                                ) {
+                                    Text("Create Playlist", color = Color.Black, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Button(
+                                    onClick = { viewModel.showImportM3UDialog = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyMediumGray)
+                                ) {
+                                    Text("Import M3U", color = ThemeWhite, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -1137,6 +1228,30 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Button(
+                                    onClick = onCreatePlaylistClick,
+                                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("New Playlist", color = Color.Black, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Button(
+                                    onClick = { viewModel.showImportM3UDialog = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyMediumGray),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Import M3U", color = ThemeWhite, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
                         items(playlists) { playlist ->
                             Row(
                                 modifier = Modifier
@@ -1148,7 +1263,7 @@ fun LibraryScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier
                                             .size(50.dp)
@@ -1165,8 +1280,13 @@ fun LibraryScreen(
                                     }
                                 }
 
-                                IconButton(onClick = { viewModel.deletePlaylist(playlist.id) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = SpotifyTextSecondary)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = { viewModel.exportPlaylistToM3U(playlist.id, playlist.name) }) {
+                                        Icon(Icons.Default.Share, contentDescription = "Export to M3U", tint = SpotifyGreen, modifier = Modifier.size(20.dp))
+                                    }
+                                    IconButton(onClick = { viewModel.deletePlaylist(playlist.id) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = SpotifyTextSecondary)
+                                    }
                                 }
                             }
                         }
@@ -1193,7 +1313,8 @@ fun LibraryScreen(
                                 song = song,
                                 onClick = { viewModel.playSong(song, favoriteList) },
                                 onAddToPlaylist = { viewModel.showAddToPlaylistDialog = song },
-                                onAddToQueue = { viewModel.addToQueue(song) }
+                                onAddToQueue = { viewModel.addToQueue(song) },
+                                onEditTags = { viewModel.showEditTagsDialog = song }
                             )
                         }
                         item {
@@ -1311,16 +1432,11 @@ fun PlaylistDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(rememberAlbumArt(song))
-                                    .error(R.drawable.ic_launcher_foreground)
-                                    .build(),
-                                contentDescription = null,
+                            SoundScapeArtwork(
+                                song = song,
                                 modifier = Modifier
                                     .size(44.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                contentScale = ContentScale.Crop
+                                    .clip(RoundedCornerShape(4.dp))
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
@@ -1348,7 +1464,8 @@ fun SongItemRow(
     song: Song,
     onClick: () -> Unit,
     onAddToPlaylist: () -> Unit,
-    onAddToQueue: () -> Unit
+    onAddToQueue: () -> Unit,
+    onEditTags: () -> Unit
 ) {
     val durationText = remember(song.durationMs) {
         val min = TimeUnit.MILLISECONDS.toMinutes(song.durationMs)
@@ -1370,16 +1487,11 @@ fun SongItemRow(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(rememberAlbumArt(song))
-                    .error(R.drawable.ic_launcher_foreground)
-                    .build(),
-                contentDescription = null,
+            SoundScapeArtwork(
+                song = song,
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                contentScale = ContentScale.Crop
+                    .clip(RoundedCornerShape(4.dp))
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -1406,22 +1518,47 @@ fun SongItemRow(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = durationText, color = SpotifyTextSecondary, fontSize = 11.sp)
+            Spacer(modifier = Modifier.width(4.dp))
             
-            IconButton(onClick = onAddToQueue) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                    contentDescription = "Add to queue",
-                    tint = SpotifyGreen,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            IconButton(onClick = onAddToPlaylist) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                    contentDescription = "Add to playlist",
-                    tint = SpotifyTextSecondary
-                )
+            var showMenu by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More song options",
+                        tint = SpotifyTextSecondary
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    modifier = Modifier.background(SpotifyDark)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Add to Queue", color = ThemeWhite) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, tint = SpotifyGreen, modifier = Modifier.size(20.dp)) },
+                        onClick = {
+                            onAddToQueue()
+                            showMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Add to Playlist", color = ThemeWhite) },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
+                        onClick = {
+                            onAddToPlaylist()
+                            showMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Edit Metadata", color = ThemeWhite) },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
+                        onClick = {
+                            onEditTags()
+                            showMenu = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -1592,12 +1729,37 @@ fun ExpandedPlayerScreen(
                         modifier = Modifier.size(26.dp)
                     )
                 }
-                IconButton(onClick = { viewModel.showAddToPlaylistDialog = song }) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More options",
-                        tint = ThemeWhite
-                    )
+                var showPlayerOptionsMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showPlayerOptionsMenu = true }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options",
+                            tint = ThemeWhite
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showPlayerOptionsMenu,
+                        onDismissRequest = { showPlayerOptionsMenu = false },
+                        modifier = Modifier.background(SpotifyDark)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Add to Playlist", color = ThemeWhite) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
+                            onClick = {
+                                viewModel.showAddToPlaylistDialog = song
+                                showPlayerOptionsMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Edit Metadata", color = ThemeWhite) },
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
+                            onClick = {
+                                viewModel.showEditTagsDialog = song
+                                showPlayerOptionsMenu = false
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1612,18 +1774,13 @@ fun ExpandedPlayerScreen(
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(rememberAlbumArt(song))
-                    .error(R.drawable.ic_launcher_foreground)
-                    .build(),
-                contentDescription = "Album image art",
+            SoundScapeArtwork(
+                song = song,
                 modifier = Modifier
                     .fillMaxSize()
                     .rotate(rotationAngle)
                     .clip(CircleShape) // Rotates perfectly like a vintage vinyl disc!
-                    .background(SpotifyMediumGray),
-                contentScale = ContentScale.Crop
+                    .background(SpotifyMediumGray)
             )
         }
 
@@ -1779,12 +1936,12 @@ fun ExpandedPlayerScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Stage 2 Custom Accessory Row: Sleep Timer & Speed Controls
+        // Stage 2 Custom Accessory Row: Sleep Timer, Speed Controls & Equalizer
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Speed Controller
@@ -1891,6 +2048,41 @@ fun ExpandedPlayerScreen(
                             }
                         )
                     }
+                }
+            }
+
+            // Equalizer (EQ) controller
+            var showEqualizerDialog by remember { mutableStateOf(false) }
+            Box {
+                Button(
+                    onClick = { showEqualizerDialog = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SpotifyMediumGray.copy(alpha = 0.6f),
+                        contentColor = if (viewModel.eqEnabled || viewModel.bbEnabled) SpotifyGreen else ThemeWhite
+                    ),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.testTag("btn_equalizer")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GraphicEq,
+                        contentDescription = "Equalizer",
+                        modifier = Modifier.size(16.dp),
+                        tint = if (viewModel.eqEnabled || viewModel.bbEnabled) SpotifyGreen else ThemeWhite
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "EQ",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                if (showEqualizerDialog) {
+                    EqualizerDialog(
+                        viewModel = viewModel,
+                        onDismiss = { showEqualizerDialog = false }
+                    )
                 }
             }
         }
@@ -2112,12 +2304,7 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.MusicNote,
-                contentDescription = "Welcome Logo",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(72.dp)
-            )
+            SoundScapeBrandLogo(modifier = Modifier.size(80.dp))
             
             Text(
                 text = "Welcome to SoundScape",
@@ -2394,7 +2581,7 @@ fun ProfileSettingsDialog(
                 )
 
                 Text(
-                    text = "SoundScape v1.0.0",
+                    text = "SoundScape v1.2",
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -2802,16 +2989,11 @@ fun QueueOverlay(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(rememberAlbumArt(currentSong))
-                        .error(R.drawable.ic_launcher_foreground)
-                        .build(),
-                    contentDescription = null,
+                SoundScapeArtwork(
+                    song = currentSong,
                     modifier = Modifier
                         .size(52.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    contentScale = ContentScale.Crop
+                        .clip(RoundedCornerShape(4.dp))
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -2903,16 +3085,11 @@ fun QueueOverlay(
                                 fontSize = 12.sp,
                                 modifier = Modifier.width(20.dp)
                             )
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(rememberAlbumArt(song))
-                                    .error(R.drawable.ic_launcher_foreground)
-                                    .build(),
-                                contentDescription = null,
+                            SoundScapeArtwork(
+                                song = song,
                                 modifier = Modifier
                                     .size(44.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                contentScale = ContentScale.Crop
+                                    .clip(RoundedCornerShape(4.dp))
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
@@ -2950,6 +3127,436 @@ fun QueueOverlay(
                                 Icon(Icons.Default.Delete, contentDescription = "Remove from Queue", tint = SpotifyTextSecondary)
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------- PREMIUM COMPOSABLE: SOUNDSCAPE BRAND LOGO ----------------
+@Composable
+fun SoundScapeBrandLogo(modifier: Modifier) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFF1DB954), Color(0xFF00E5FF))
+                )
+            )
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.GraphicEq,
+            contentDescription = null,
+            tint = Color.Black,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+// ---------------- PREMIUM COMPOSABLE: EQUALIZER DIALOG ----------------
+@Composable
+fun EqualizerDialog(
+    viewModel: MusicViewModel,
+    onDismiss: () -> Unit
+) {
+    var showPresetMenu by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            colors = CardDefaults.cardColors(containerColor = SpotifyDark),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Audio Equalizer & Bass",
+                        color = ThemeWhite,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = ThemeWhite)
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Equalizer Switch Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = SpotifyGreen)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Equalizer State", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
+                    }
+                    Switch(
+                        checked = viewModel.eqEnabled,
+                        onCheckedChange = { viewModel.toggleEqualizer() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = SpotifyDark,
+                            checkedTrackColor = SpotifyGreen,
+                            uncheckedThumbColor = SpotifyTextSecondary,
+                            uncheckedTrackColor = SpotifyMediumGray
+                        )
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Preset Dropdown (enabled only if EQ is enabled)
+                if (viewModel.eqEnabled) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { showPresetMenu = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = SpotifyMediumGray),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Select Preset", color = ThemeWhite)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = ThemeWhite)
+                        }
+                        DropdownMenu(
+                            expanded = showPresetMenu,
+                            onDismissRequest = { showPresetMenu = false },
+                            modifier = Modifier.background(SpotifyDark)
+                        ) {
+                            val presets = listOf("Flat", "Bass Booster", "Electronic", "Pop", "Rock", "Classical")
+                            presets.forEach { preset ->
+                                DropdownMenuItem(
+                                    text = { Text(preset, color = ThemeWhite) },
+                                    onClick = {
+                                        viewModel.applyEqualizerPreset(preset)
+                                        showPresetMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 5 vertical sliders
+                    Text("Frequency Bands", color = SpotifyTextSecondary, fontSize = 12.sp, modifier = Modifier.align(Alignment.Start))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        val frequencies = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
+                        frequencies.forEachIndexed { index, freq ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                val bandLevel = viewModel.eqBands.getOrElse(index) { 0 }
+                                Text("${bandLevel / 100}dB", color = ThemeWhite, fontSize = 11.sp)
+                                Slider(
+                                    value = bandLevel.toFloat(),
+                                    onValueChange = { value ->
+                                        viewModel.updateEqualizerBand(index, value.toInt())
+                                    },
+                                    valueRange = -1500f..1500f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = SpotifyGreen,
+                                        activeTrackColor = SpotifyGreen,
+                                        inactiveTrackColor = SpotifyMediumGray
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .graphicsLayer {
+                                            rotationZ = -90f
+                                        }
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(freq, color = SpotifyTextSecondary, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+
+                // Bass Boost Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Tune, contentDescription = null, tint = SpotifyGreen)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Bass Boost State", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
+                    }
+                    Switch(
+                        checked = viewModel.bbEnabled,
+                        onCheckedChange = { viewModel.toggleBassBoost() },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = SpotifyDark,
+                            checkedTrackColor = SpotifyGreen,
+                            uncheckedThumbColor = SpotifyTextSecondary,
+                            uncheckedTrackColor = SpotifyMediumGray
+                        )
+                    )
+                }
+
+                if (viewModel.bbEnabled) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Strength", color = ThemeWhite, fontSize = 13.sp, modifier = Modifier.width(70.dp))
+                        Slider(
+                            value = viewModel.bbStrength.toFloat(),
+                            onValueChange = { value ->
+                                viewModel.updateBassBoostStrength(value.toInt())
+                            },
+                            valueRange = 0f..1000f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = SpotifyGreen,
+                                activeTrackColor = SpotifyGreen,
+                                inactiveTrackColor = SpotifyMediumGray
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("${viewModel.bbStrength / 10}%", color = ThemeWhite, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------- PREMIUM COMPOSABLE: EDIT METADATA TAGS DIALOG ----------------
+@Composable
+fun EditSongTagsDialog(
+    song: Song,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit
+) {
+    var title by remember { mutableStateOf(song.title) }
+    var artist by remember { mutableStateOf(song.artist) }
+    var album by remember { mutableStateOf(song.album) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SpotifyDark),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "Edit Song Metadata",
+                    color = ThemeWhite,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Title", color = SpotifyTextSecondary) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = SpotifyMediumGray,
+                        unfocusedContainerColor = SpotifyMediumGray,
+                        focusedTextColor = ThemeWhite,
+                        unfocusedTextColor = ThemeWhite,
+                        cursorColor = SpotifyGreen,
+                        focusedIndicatorColor = SpotifyGreen
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                TextField(
+                    value = artist,
+                    onValueChange = { artist = it },
+                    label = { Text("Artist", color = SpotifyTextSecondary) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = SpotifyMediumGray,
+                        unfocusedContainerColor = SpotifyMediumGray,
+                        focusedTextColor = ThemeWhite,
+                        unfocusedTextColor = ThemeWhite,
+                        cursorColor = SpotifyGreen,
+                        focusedIndicatorColor = SpotifyGreen
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                TextField(
+                    value = album,
+                    onValueChange = { album = it },
+                    label = { Text("Album", color = SpotifyTextSecondary) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = SpotifyMediumGray,
+                        unfocusedContainerColor = SpotifyMediumGray,
+                        focusedTextColor = ThemeWhite,
+                        unfocusedTextColor = ThemeWhite,
+                        cursorColor = SpotifyGreen,
+                        focusedIndicatorColor = SpotifyGreen
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = ThemeWhite)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onConfirm(title, artist, album) },
+                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+                    ) {
+                        Text("Save", color = SpotifyDark, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------- PREMIUM COMPOSABLE: IMPORT M3U DIALOG ----------------
+@Composable
+fun ImportM3UDialog(
+    viewModel: MusicViewModel,
+    onDismiss: () -> Unit
+) {
+    LaunchedEffect(Unit) {
+        viewModel.scanForM3UPlaylists()
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SpotifyDark),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = "Import M3U Playlist",
+                    color = ThemeWhite,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Scanning directory: ${viewModel.musicPath}",
+                    color = SpotifyTextSecondary,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val m3uFiles = viewModel.availableM3UFiles
+                if (m3uFiles.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(120.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No .m3u or .m3u8 files found.", color = SpotifyTextSecondary)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                    ) {
+                        items(m3uFiles) { file ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.importPlaylistFromM3U(file)
+                                        onDismiss()
+                                    }
+                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                        contentDescription = null,
+                                        tint = SpotifyGreen,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = file.name,
+                                        color = ThemeWhite,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForwardIos,
+                                    contentDescription = "Import",
+                                    tint = SpotifyTextSecondary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            HorizontalDivider(color = SpotifyMediumGray.copy(alpha = 0.5f))
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = ThemeWhite)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { viewModel.scanForM3UPlaylists() },
+                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyMediumGray)
+                    ) {
+                        Text("Rescan", color = ThemeWhite)
                     }
                 }
             }

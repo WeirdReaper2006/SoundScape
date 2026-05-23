@@ -2,10 +2,13 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.ComponentName
+import android.content.Intent
+import java.io.File
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
@@ -28,6 +31,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class SortCriteria {
     TITLE,
@@ -122,6 +126,27 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // Selected items for playlists editing
     var showAddToPlaylistDialog by mutableStateOf<Song?>(null)
+    var showEditTagsDialog by mutableStateOf<Song?>(null)
+    var showImportM3UDialog by mutableStateOf(false)
+
+    // Equalizer & Bass Boost states
+    var eqEnabled by mutableStateOf(false)
+        private set
+
+    var bbEnabled by mutableStateOf(false)
+        private set
+
+    var bbStrength by mutableStateOf(0)
+        private set
+
+    val eqBands = mutableStateListOf(0, 0, 0, 0, 0)
+
+    // Song Metadata Overrides
+    var songOverrides by mutableStateOf<Map<String, com.example.data.db.SongOverrideEntity>>(emptyMap())
+        private set
+
+    // M3U Playlists
+    val availableM3UFiles = mutableStateListOf<File>()
 
     // Onboarding & User Profile States
     var userName by mutableStateOf("New Listener")
@@ -148,7 +173,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadProfile()
+        initEqualizerSettings()
         initMediaController()
+        
+        // Listen to metadata overrides flow in real-time
+        viewModelScope.launch {
+            repository.songOverrides.collect { overrides ->
+                songOverrides = overrides.associateBy { it.songId }
+                applyOverridesToLibrary()
+            }
+        }
+
         refreshLibrary()
     }
 
@@ -312,7 +347,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             isLoadingSongs = true
             try {
                 val foundLocal = repository.getLocalSongs()
-                allSongs = sortSongsList(foundLocal, activeSortCriteria, activeSortOrder)
+                val mapped = applyOverridesToSongs(foundLocal)
+                allSongs = sortSongsList(mapped, activeSortCriteria, activeSortOrder)
                 searchResults = allSongs
             } catch (e: Exception) {
                 allSongs = emptyList()
@@ -691,7 +727,268 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         progressTrackingJob = null
     }
 
+    // ---------------- PREMIUM 5-BAND EQUALIZER & BASS BOOST ----------------
+    fun initEqualizerSettings() {
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        eqEnabled = prefs.getBoolean("eq_enabled", false)
+        bbEnabled = prefs.getBoolean("bb_enabled", false)
+        bbStrength = prefs.getInt("bb_strength", 0)
+        for (i in 0 until 5) {
+            val level = prefs.getInt("eq_band_$i", 0)
+            if (i < eqBands.size) {
+                eqBands[i] = level
+            } else {
+                eqBands.add(level)
+            }
+        }
+    }
+
+    fun toggleEqualizer() {
+        eqEnabled = !eqEnabled
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("eq_enabled", eqEnabled).apply()
+        notifyServiceReloadEffects()
+    }
+
+    fun toggleBassBoost() {
+        bbEnabled = !bbEnabled
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("bb_enabled", bbEnabled).apply()
+        notifyServiceReloadEffects()
+    }
+
+    fun updateEqualizerBand(bandIndex: Int, level: Int) {
+        if (bandIndex in eqBands.indices) {
+            eqBands[bandIndex] = level
+            val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putInt("eq_band_$bandIndex", level).apply()
+            notifyServiceReloadEffects()
+        }
+    }
+
+    fun updateBassBoostStrength(strength: Int) {
+        bbStrength = strength
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putInt("bb_strength", strength).apply()
+        notifyServiceReloadEffects()
+    }
+
+    fun applyEqualizerPreset(presetName: String) {
+        val presetBands = when (presetName.lowercase()) {
+            "bass booster" -> listOf(600, 400, 0, 0, 0)
+            "electronic" -> listOf(400, 200, 0, 300, 400)
+            "pop" -> listOf(-200, 0, 300, 100, -200)
+            "rock" -> listOf(500, 300, -100, 200, 400)
+            "classical" -> listOf(300, 200, 0, 200, 300)
+            else -> listOf(0, 0, 0, 0, 0) // Flat
+        }
+        for (i in 0 until 5) {
+            updateEqualizerBand(i, presetBands[i])
+        }
+    }
+
+    private fun notifyServiceReloadEffects() {
+        val intent = Intent(getApplication(), MusicService::class.java).apply {
+            action = "com.example.ACTION_RELOAD_EFFECTS"
+        }
+        getApplication<Application>().startService(intent)
+    }
+
+    // ---------------- PREMIUM LOCAL METADATA / ID3 OVERRIDES ----------------
+    fun saveSongOverride(songId: String, title: String, artist: String, album: String) {
+        viewModelScope.launch {
+            repository.saveSongOverride(songId, title, artist, album)
+        }
+    }
+
+    private fun applyOverridesToSongs(songs: List<Song>): List<Song> {
+        val overrides = songOverrides
+        if (overrides.isEmpty()) return songs
+        return songs.map { song ->
+            val override = overrides[song.id]
+            if (override != null) {
+                song.copy(
+                    title = override.title,
+                    artist = override.artist,
+                    album = override.album
+                )
+            } else {
+                song
+            }
+        }
+    }
+
+    private fun applyOverridesToLibrary() {
+        val origList = allSongs
+        allSongs = applyOverridesToSongs(origList)
+        onSearchQueryChanged(searchQuery)
+        
+        currentPlayingSong?.let { song ->
+            songOverrides[song.id]?.let { override ->
+                currentPlayingSong = song.copy(
+                    title = override.title,
+                    artist = override.artist,
+                    album = override.album
+                )
+            }
+        }
+    }
+
+    // ---------------- PREMIUM PLAYLIST IMPORT / EXPORT (M3U) ----------------
+    private fun getBaseMusicDirectory(): File {
+        val root = android.os.Environment.getExternalStorageDirectory()
+        val customPath = musicPath.trim()
+        val dir = if (customPath.isNotBlank()) {
+            File(root, customPath)
+        } else {
+            File(root, "Music")
+        }
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        return dir
+    }
+
+    fun exportPlaylistToM3U(playlistId: Long, playlistName: String) {
+        viewModelScope.launch {
+            try {
+                val songs = repository.getPlaylistSongs(playlistId).first()
+                val dir = File(getBaseMusicDirectory(), "Playlists")
+                if (!dir.exists()) {
+                    dir.mkdirs()
+                }
+                val m3uFile = File(dir, "${playlistName.replace("[\\\\/:*?\"<>|]".toRegex(), "_")}.m3u")
+                withContext(Dispatchers.IO) {
+                    m3uFile.bufferedWriter().use { writer ->
+                        writer.write("#EXTM3U\n")
+                        songs.forEach { song ->
+                            writer.write("#EXTINF:${song.durationMs / 1000},${song.artist} - ${song.title}\n")
+                            writer.write("${song.path}\n")
+                        }
+                    }
+                }
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Playlist exported to: ${m3uFile.absolutePath}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Export failed: ${e.localizedMessage}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    fun scanForM3UPlaylists() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = mutableListOf<File>()
+            try {
+                val musicDir = getBaseMusicDirectory()
+                scanDirForM3U(musicDir, list)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            viewModelScope.launch(Dispatchers.Main) {
+                availableM3UFiles.clear()
+                availableM3UFiles.addAll(list)
+            }
+        }
+    }
+
+    private fun scanDirForM3U(dir: File, outList: MutableList<File>) {
+        if (!dir.exists() || !dir.isDirectory) return
+        val files = dir.listFiles() ?: return
+        for (f in files) {
+            if (f.isDirectory) {
+                if (!f.name.startsWith(".")) {
+                    scanDirForM3U(f, outList)
+                }
+            } else if (f.name.endsWith(".m3u", ignoreCase = true) || f.name.endsWith(".m3u8", ignoreCase = true)) {
+                outList.add(f)
+            }
+        }
+    }
+
+    fun importPlaylistFromM3U(file: File) {
+        viewModelScope.launch {
+            try {
+                val playlistName = file.nameWithoutExtension
+                val playlistId = repository.createPlaylist(playlistName)
+                
+                val lines = withContext(Dispatchers.IO) {
+                    file.readLines()
+                }
+                
+                var currentTitle = ""
+                var currentArtist = ""
+                
+                for (line in lines) {
+                    val trimmed = line.trim()
+                    if (trimmed.isEmpty()) continue
+                    
+                    if (trimmed.startsWith("#EXTINF:")) {
+                        val parts = trimmed.substringAfter("#EXTINF:").split(",", limit = 2)
+                        if (parts.size == 2) {
+                            val info = parts[1]
+                            val dashIndex = info.indexOf(" - ")
+                            if (dashIndex != -1) {
+                                currentArtist = info.substring(0, dashIndex).trim()
+                                currentTitle = info.substring(dashIndex + 3).trim()
+                            } else {
+                                currentTitle = info.trim()
+                                currentArtist = "Unknown Artist"
+                            }
+                        }
+                    } else if (!trimmed.startsWith("#")) {
+                        val path = trimmed
+                        val matchingSong = allSongs.find { 
+                            it.path.equals(path, ignoreCase = true) || 
+                            File(it.path).name.equals(File(path).name, ignoreCase = true) 
+                        }
+                        
+                        if (matchingSong != null) {
+                            repository.addSongToPlaylist(playlistId, matchingSong)
+                        } else {
+                            val fileName = File(path).nameWithoutExtension
+                            val fallbackSong = Song(
+                                id = path.hashCode().toString(),
+                                title = if (currentTitle.isNotEmpty()) currentTitle else fileName,
+                                artist = if (currentArtist.isNotEmpty()) currentArtist else "Unknown Artist",
+                                album = "Imported Playlist",
+                                path = path,
+                                durationMs = 0L,
+                                isLocal = true
+                            )
+                            repository.addSongToPlaylist(playlistId, fallbackSong)
+                        }
+                        currentTitle = ""
+                        currentArtist = ""
+                    }
+                }
+                
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Playlist '$playlistName' imported!",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                refreshLibrary()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                android.widget.Toast.makeText(
+                    getApplication(),
+                    "Import failed: ${e.localizedMessage}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
     override fun onCleared() {
+        stopProgressTracker()
         stopProgressTracker()
         controllerFuture?.let { future ->
             MediaController.releaseFuture(future)

@@ -38,6 +38,14 @@ data class PlaylistSongCrossRef(
     val isLocal: Boolean
 )
 
+@Entity(tableName = "song_overrides")
+data class SongOverrideEntity(
+    @PrimaryKey val songId: String,
+    val title: String,
+    val artist: String,
+    val album: String
+)
+
 @Dao
 interface MusicDao {
     @Query("SELECT * FROM favorites")
@@ -69,10 +77,16 @@ interface MusicDao {
 
     @Query("SELECT * FROM playlist_songs WHERE playlistId = :playlistId")
     fun getPlaylistSongs(playlistId: Long): Flow<List<PlaylistSongCrossRef>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertOverride(override: SongOverrideEntity)
+
+    @Query("SELECT * FROM song_overrides")
+    fun getOverrides(): Flow<List<SongOverrideEntity>>
 }
 
 @Database(
-    entities = [FavoriteEntity::class, PlaylistEntity::class, PlaylistSongCrossRef::class],
+    entities = [FavoriteEntity::class, PlaylistEntity::class, PlaylistSongCrossRef::class, SongOverrideEntity::class],
     version = 1,
     exportSchema = false
 )
