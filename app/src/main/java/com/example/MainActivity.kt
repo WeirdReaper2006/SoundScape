@@ -2035,7 +2035,13 @@ fun AudioWaveformVisualizer(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(28.dp),
+            .height(28.dp)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) {
+                // No-op to consume touch gestures and prevent fall-through / click propagation to the Slider scrub bar underneath it
+            },
         horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {

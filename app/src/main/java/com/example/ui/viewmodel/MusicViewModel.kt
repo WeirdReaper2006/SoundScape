@@ -393,12 +393,84 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val mapped = applyOverridesToSongs(foundLocal)
                 allSongs = sortSongsList(mapped, activeSortCriteria, activeSortOrder)
                 searchResults = allSongs
+                // Start background scan of genres asynchronously so that UI loads instantaneously!
+                startAsynchronousGenreScanning(allSongs)
             } catch (e: Exception) {
                 allSongs = emptyList()
                 searchResults = allSongs
             } finally {
                 applySortingAndFiltering()
                 isLoadingSongs = false
+            }
+        }
+    }
+
+    private var genreScanJob: kotlinx.coroutines.Job? = null
+    private val genreCacheMap = mutableMapOf<String, String>()
+
+    private fun startAsynchronousGenreScanning(songs: List<Song>) {
+        genreScanJob?.cancel()
+        genreScanJob = viewModelScope.launch(Dispatchers.IO) {
+            val context = getApplication<android.app.Application>()
+            val updatedSongs = songs.toMutableList()
+            var hasAnyUpdates = false
+
+            songs.forEachIndexed { index, song ->
+                if (song.genre == null) {
+                    val cached = genreCacheMap[song.id]
+                    val genre = if (cached != null) {
+                        cached
+                    } else {
+                        var extractedGenre: String? = null
+                        val retriever = android.media.MediaMetadataRetriever()
+                        try {
+                            if (song.path.isNotEmpty()) {
+                                if (song.path.startsWith("content://") || song.path.startsWith("file://")) {
+                                    retriever.setDataSource(context, android.net.Uri.parse(song.path))
+                                } else {
+                                    retriever.setDataSource(song.path)
+                                }
+                                val rawGenre = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_GENRE)
+                                if (!rawGenre.isNullOrBlank()) {
+                                    val trimmed = rawGenre.trim().lowercase()
+                                    extractedGenre = when {
+                                        trimmed.contains("pop") -> "Pop"
+                                        trimmed.contains("r&b") || trimmed.contains("r and b") || trimmed.contains("r& b") || trimmed.contains("r & b") || trimmed.contains("rhythm") -> "R&B"
+                                        trimmed.contains("rock") -> "Rock"
+                                        trimmed.contains("rap") || trimmed.contains("hip") -> "Hip-Hop"
+                                        trimmed.contains("jazz") -> "Jazz"
+                                        trimmed.contains("metal") -> "Metal"
+                                        trimmed.contains("electronic") || trimmed.contains("edm") || trimmed.contains("electro") || trimmed.contains("synth") -> "Electronic"
+                                        trimmed.contains("classical") -> "Classical"
+                                        trimmed.contains("country") -> "Country"
+                                        trimmed.contains("indie") -> "Indie"
+                                        else -> rawGenre.trim().split(Regex("[/,-]")).firstOrNull()?.trim()?.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() } ?: "Other"
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // ignore
+                        } finally {
+                            try { retriever.release() } catch (ex: Exception) {}
+                        }
+                        extractedGenre ?: "Unknown"
+                    }
+
+                    if (genre != "Unknown") {
+                        genreCacheMap[song.id] = genre
+                        updatedSongs[index] = song.copy(genre = genre)
+                        hasAnyUpdates = true
+
+                        // Batch updates to UI to prevent stuttering
+                        if (hasAnyUpdates && (index % 5 == 0 || index == songs.lastIndex)) {
+                            withContext(Dispatchers.Main) {
+                                val currentList = updatedSongs.toList()
+                                allSongs = sortSongsList(currentList, activeSortCriteria, activeSortOrder)
+                                searchResults = allSongs
+                            }
+                        }
+                    }
+                }
             }
         }
     }
