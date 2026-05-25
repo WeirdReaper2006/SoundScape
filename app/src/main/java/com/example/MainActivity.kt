@@ -875,165 +875,105 @@ fun HomeScreen(
             }
         }
 
-        // Curated playlists horizontal loop
+        // Curated playlists 2-column grid for 6 Genre Mixes (Uniquely Yours)
         item {
             Text(text = "Uniquely Yours", color = ThemeWhite, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
 
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Liked Songs block card
-                    Card(
-                        modifier = Modifier
-                            .width(150.dp)
-                            .clickable {
-                                // Find or load all liked tracks
-                                if (favoriteList.isNotEmpty()) {
-                                    viewModel.playSong(favoriteList.first(), favoriteList)
-                                } else {
-                                    Toast
-                                        .makeText(
-                                            localContext,
-                                            "No liked songs yet! Library tab to find songs.",
-                                            Toast.LENGTH_SHORT
-                                        )
-                                        .show()
-                                }
-                            },
-                        colors = CardDefaults.cardColors(containerColor = SpotifyMediumGray)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .size(126.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(
-                                        brush = Brush.linearGradient(
-                                            colors = listOf(Color(0xFF450E72), Color(0xFFC062EF))
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Filled.Favorite, contentDescription = "Liked", tint = Color.White, modifier = Modifier.size(48.dp))
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = "Liked Songs",
-                                color = ThemeWhite,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                            Text(
-                                text = "${favoriteList.size} tracks",
-                                color = SpotifyTextSecondary,
-                                fontSize = 11.sp,
-                                maxLines = 1
-                            )
-                        }
-                    }
-
-                    // Preloaded custom playlists
-                    playlists.take(2).forEach { playlist ->
-                        Card(
-                            modifier = Modifier
-                                .width(150.dp)
-                                .clickable { onPlaylistSelect(playlist) },
-                            colors = CardDefaults.cardColors(containerColor = SpotifyMediumGray)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(126.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            brush = Brush.linearGradient(
-                                                colors = listOf(SpotifyLightGray, SpotifyMediumGray)
-                                            )
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "Playlist", tint = SpotifyGreen, modifier = Modifier.size(48.dp))
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = playlist.name,
-                                    color = ThemeWhite,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "Custom Playlist",
-                                    color = SpotifyTextSecondary,
-                                    fontSize = 11.sp,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = "Your Genre Mixes",
-                color = ThemeWhite,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-
             val genres = viewModel.topGenres
             if (genres.isEmpty()) {
-                Text(
-                    text = "No genres identified yet! Ensure your music files have genre tags.",
-                    color = SpotifyTextSecondary,
-                    fontSize = 12.sp
-                )
-            } else {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SpotifyMediumGray),
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(genres) { genreName ->
-                        Card(
-                            modifier = Modifier
-                                .clickable {
-                                    val matchingSongs = viewModel.allSongs.filter { it.genre == genreName }
-                                    viewModel.temporaryPlaylistSongs = matchingSongs
-                                    onPlaylistSelect(
-                                        PlaylistEntity(
-                                            id = -999L,
-                                            name = "$genreName Mix",
-                                            songCount = matchingSongs.size
-                                        )
-                                    )
-                                },
-                            colors = CardDefaults.cardColors(containerColor = SpotifyMediumGray),
-                            shape = RoundedCornerShape(16.dp)
+                    Text(
+                        text = "No genres identified yet! Ensure your music files have genre tags.",
+                        color = SpotifyTextSecondary,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            } else {
+                // List of 6 curated beautiful daily gradients matching Spotify mixes
+                val mixGradients = listOf(
+                    listOf(Color(0xFFE91E63), Color(0xFFFFC107)), // Pop (Pink-Gold)
+                    listOf(Color(0xFF9C27B0), Color(0xFFE91E63)), // R&B (Purple-Pink)
+                    listOf(Color(0xFF3F51B5), Color(0xFF00BCD4)), // Rock (Blue-Cyan)
+                    listOf(Color(0xFF4CAF50), Color(0xFF8BC34A)), // Hip-Hop (Green-Lime)
+                    listOf(Color(0xFFFF9800), Color(0xFFFF5722)), // Electronic (Orange-Red)
+                    listOf(Color(0xFF607D8B), Color(0xFF9E9E9E))  // Jazz / Other (Gray-Silver)
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    genres.chunked(2).forEachIndexed { rowIndex, chunk ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.MusicNote,
-                                    contentDescription = null,
-                                    tint = SpotifyGreen,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = genreName,
-                                    color = ThemeWhite,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            chunk.forEachIndexed { colIndex, genreName ->
+                                val gradientIndex = (rowIndex * 2 + colIndex) % mixGradients.size
+                                val gradientColors = mixGradients[gradientIndex]
+                                val matchingSongs = viewModel.allSongs.filter { it.genre == genreName }
+
+                                Card(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            viewModel.temporaryPlaylistSongs = matchingSongs
+                                            onPlaylistSelect(
+                                                PlaylistEntity(
+                                                    id = -999L,
+                                                    name = "$genreName Mix",
+                                                    songCount = matchingSongs.size
+                                                )
+                                            )
+                                        },
+                                    colors = CardDefaults.cardColors(containerColor = SpotifyMediumGray)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .aspectRatio(1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(brush = Brush.linearGradient(colors = gradientColors)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.MusicNote,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(48.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = "$genreName Mix",
+                                            color = ThemeWhite,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${matchingSongs.size} tracks",
+                                            color = SpotifyTextSecondary,
+                                            fontSize = 11.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                            if (chunk.size < 2) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
