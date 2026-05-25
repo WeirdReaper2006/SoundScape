@@ -871,42 +871,10 @@ fun HomeScreen(
 }
 
 // ---------------- SEARCH TAB SCREEN ----------------
-private data class SearchBrowseCategory(
-    val title: String,
-    val gradient: Brush,
-    val icon: ImageVector,
-    val onClick: () -> Unit
-)
-
 @Composable
 fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
     val localContext = LocalContext.current
     val searchResults = viewModel.searchResults
-
-    val categories = remember {
-        listOf(
-            SearchBrowseCategory("Liked Songs", Brush.linearGradient(listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0))), Icons.Default.Favorite) {
-                viewModel.activeTabIndex = 2
-            },
-            SearchBrowseCategory("Playlists", Brush.linearGradient(listOf(Color(0xFF00E5FF), Color(0xFF12005E))), Icons.Default.Folder) {
-                viewModel.activeTabIndex = 2
-            },
-            SearchBrowseCategory("Hi-Res FLACs", Brush.linearGradient(listOf(Color(0xFF11998E), Color(0xFF38EF7D))), Icons.Default.Album) {
-                viewModel.onSearchQueryChanged(".flac")
-            },
-            SearchBrowseCategory("Recently Added", Brush.linearGradient(listOf(Color(0xFFFF9966), Color(0xFFFF5E62))), Icons.Default.AccessTime) {
-                viewModel.onSearchQueryChanged("")
-                viewModel.updateSort(com.example.ui.viewmodel.SortCriteria.DATE_ADDED, com.example.ui.viewmodel.SortOrder.DESCENDING)
-                viewModel.activeTabIndex = 2
-            },
-            SearchBrowseCategory("Equalizer & FX", Brush.linearGradient(listOf(Color(0xFF00C6FF), Color(0xFF0072FF))), Icons.Default.GraphicEq) {
-                viewModel.showEqualizerDialogGlobally = true
-            },
-            SearchBrowseCategory("All Offline Music", Brush.linearGradient(listOf(Color(0xFF1DB954), Color(0xFF1AA34A))), Icons.Default.Audiotrack) {
-                viewModel.onSearchQueryChanged("")
-            }
-        )
-    }
 
     Column(
         modifier = Modifier
@@ -976,51 +944,29 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Display states: Browse Categories or Query Search list
+        // Display states: Search Placeholder or Query Search list
         if (viewModel.searchQuery.isBlank()) {
-            Text(
-                text = "Browse all",
-                color = ThemeWhite,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
             ) {
-                items(categories) { category ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(category.gradient)
-                            .clickable { category.onClick() }
-                            .padding(12.dp)
-                    ) {
-                        Text(
-                            text = category.title,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.align(Alignment.TopStart)
-                        )
-                        Icon(
-                            imageVector = category.icon,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier
-                                .size(36.dp)
-                                .align(Alignment.BottomEnd)
-                        )
-                    }
-                }
-                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
-                    Spacer(modifier = Modifier.height(64.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    SoundScapeBrandLogo(modifier = Modifier.size(100.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Search SoundScape",
+                        color = ThemeWhite,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Find your offline songs, artists, or albums",
+                        color = SpotifyTextSecondary,
+                        fontSize = 13.sp
+                    )
                 }
             }
         } else {
@@ -1320,72 +1266,6 @@ fun LibraryScreen(
             if (activeLibraryTab == "Playlists") {
                 IconButton(onClick = onCreatePlaylistClick) {
                     Icon(Icons.Default.Add, contentDescription = "Create playlist", tint = ThemeWhite, modifier = Modifier.size(28.dp))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Quick Dashboard Shortcuts Row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Liked Songs card
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(72.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0))
-                        )
-                    )
-                    .clickable { activeLibraryTab = "Favorites" }
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(text = "Liked Songs", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(text = "${favoriteList.size} songs", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
-                }
-            }
-
-            // Playlists card
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(72.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(Color(0xFF00E5FF), Color(0xFF12005E))
-                        )
-                    )
-                    .clickable { activeLibraryTab = "Playlists" }
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Folder,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(text = "Playlists", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(text = "${playlists.size} playlists", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
                 }
             }
         }
