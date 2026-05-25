@@ -317,6 +317,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                             onClick = { 
                                 viewModel.activeTabIndex = 0
                                 activePlaylistForDetail = null 
+                                viewModel.showRecentsPage = false
                             },
                             icon = { Icon(if (viewModel.activeTabIndex == 0) Icons.Filled.Home else Icons.Outlined.Home, contentDescription = "Home") },
                             label = { Text("Home") },
@@ -333,6 +334,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                             onClick = { 
                                 viewModel.activeTabIndex = 1
                                 activePlaylistForDetail = null
+                                viewModel.showRecentsPage = false
                             },
                             icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                             label = { Text("Search") },
@@ -349,6 +351,8 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                             selected = viewModel.activeTabIndex == 2,
                             onClick = { 
                                 viewModel.activeTabIndex = 2
+                                activePlaylistForDetail = null
+                                viewModel.showRecentsPage = false
                             },
                             icon = { Icon(if (viewModel.activeTabIndex == 2) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic, contentDescription = "Your Library") },
                             label = { Text("Your Library") },
