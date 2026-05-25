@@ -978,6 +978,67 @@ fun HomeScreen(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = "Your Genre Mixes",
+                color = ThemeWhite,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val genres = viewModel.topGenres
+            if (genres.isEmpty()) {
+                Text(
+                    text = "No genres identified yet! Ensure your music files have genre tags.",
+                    color = SpotifyTextSecondary,
+                    fontSize = 12.sp
+                )
+            } else {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(genres) { genreName ->
+                        Card(
+                            modifier = Modifier
+                                .clickable {
+                                    val matchingSongs = viewModel.allSongs.filter { it.genre == genreName }
+                                    viewModel.temporaryPlaylistSongs = matchingSongs
+                                    onPlaylistSelect(
+                                        PlaylistEntity(
+                                            id = -999L,
+                                            name = "$genreName Mix",
+                                            songCount = matchingSongs.size
+                                        )
+                                    )
+                                },
+                            colors = CardDefaults.cardColors(containerColor = SpotifyMediumGray),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = SpotifyGreen,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = genreName,
+                                    color = ThemeWhite,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Empty bottom clearance spacing
@@ -1882,8 +1943,10 @@ fun PlaylistDetailScreen(
                             }
                         }
 
-                        IconButton(onClick = { viewModel.removeSongFromPlaylist(playlist.id, song.id) }) {
-                            Icon(Icons.Default.PlaylistRemove, contentDescription = "Remove", tint = SpotifyTextSecondary)
+                        if (playlist.id != -999L) {
+                            IconButton(onClick = { viewModel.removeSongFromPlaylist(playlist.id, song.id) }) {
+                                Icon(Icons.Default.PlaylistRemove, contentDescription = "Remove", tint = SpotifyTextSecondary)
+                            }
                         }
                     }
                 }

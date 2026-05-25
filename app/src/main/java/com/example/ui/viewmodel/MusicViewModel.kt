@@ -59,6 +59,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     var allSongs by mutableStateOf<List<Song>>(emptyList())
         private set
 
+    var temporaryPlaylistSongs by mutableStateOf<List<Song>>(emptyList())
+
+    val topGenres: List<String>
+        get() {
+            return allSongs
+                .mapNotNull { it.genre }
+                .filter { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) && !it.equals("Other", ignoreCase = true) }
+                .groupBy { it }
+                .mapValues { it.value.size }
+                .toList()
+                .sortedByDescending { it.second }
+                .take(6)
+                .map { it.first }
+        }
+
     var searchResults by mutableStateOf<List<Song>>(emptyList())
         private set
 
@@ -664,6 +679,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getPlaylistSongs(playlistId: Long): Flow<List<Song>> {
+        if (playlistId == -999L) {
+            return flowOf(temporaryPlaylistSongs)
+        }
         return repository.getPlaylistSongs(playlistId)
     }
 

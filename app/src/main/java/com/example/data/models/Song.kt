@@ -10,5 +10,6 @@ data class Song(
     val albumArtUri: String? = null,
     val isLocal: Boolean = true,
     val mimeType: String? = null,
-    val dateAdded: Long = 0L
+    val dateAdded: Long = 0L,
+    val genre: String? = null
 )
