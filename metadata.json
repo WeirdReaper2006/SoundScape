@@ -3,5 +3,5 @@
   "description": "An offline local audio music player with a beautiful dark Spotify-inspired design supporting FLAC, MP3, M4A, playlists, and seamless background playback.",
   "requestFramePermissions": [],
   "majorCapabilities": [],
-  "version": "1.2"
+  "version": "1.3"
 }

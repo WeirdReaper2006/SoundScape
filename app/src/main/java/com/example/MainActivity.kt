@@ -2581,7 +2581,7 @@ fun ProfileSettingsDialog(
                 )
 
                 Text(
-                    text = "SoundScape v1.2",
+                    text = "SoundScape v1.3",
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
