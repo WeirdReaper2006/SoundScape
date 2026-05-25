@@ -68,6 +68,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.launch
 
 // SoundScape M3 Dynamic Theme Integration - Maps legacy styling to dynamic MaterialTheme
 val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
@@ -270,14 +271,20 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     
     var showProfileSettingsDialog by remember { mutableStateOf(false) }
     var showQueueOverlay by remember { mutableStateOf(false) }
-
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
 
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val coroutineScope = rememberCoroutineScope()
+
     // Real-time cohesive back and navigation routing interceptor
-    BackHandler(enabled = isExpandedPlayerVisible || showQueueOverlay || showProfileSettingsDialog || activePlaylistForDetail != null || viewModel.showRecentsPage || viewModel.activeTabIndex != 0) {
+    BackHandler(enabled = drawerState.isOpen || isExpandedPlayerVisible || showQueueOverlay || showProfileSettingsDialog || activePlaylistForDetail != null || viewModel.showRecentsPage || viewModel.activeTabIndex != 0) {
         when {
+            drawerState.isOpen -> coroutineScope.launch { drawerState.close() }
             showQueueOverlay -> showQueueOverlay = false
-            showProfileSettingsDialog -> showProfileSettingsDialog = false
+            showProfileSettingsDialog -> {
+                viewModel.previewTheme(viewModel.themePreset, viewModel.themeIsDark, viewModel.themeCustomColor)
+                showProfileSettingsDialog = false
+            }
             isExpandedPlayerVisible -> isExpandedPlayerVisible = false
             activePlaylistForDetail != null -> activePlaylistForDetail = null
             viewModel.showRecentsPage -> viewModel.showRecentsPage = false
@@ -285,8 +292,25 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            SpotifySidebar(
+                viewModel = viewModel,
+                onClose = { coroutineScope.launch { drawerState.close() } },
+                onNavigateToSettings = {
+                    coroutineScope.launch { drawerState.close() }
+                    showProfileSettingsDialog = true
+                },
+                onNavigateToRecents = {
+                    coroutineScope.launch { drawerState.close() }
+                    viewModel.showRecentsPage = true
+                }
+            )
+        }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
             bottomBar = {
                 Column(
                     modifier = Modifier
@@ -396,17 +420,17 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         0 -> HomeScreen(
                             viewModel = viewModel,
                             onPlaylistSelect = { activePlaylistForDetail = it },
-                            onProfileClick = { showProfileSettingsDialog = true }
+                            onProfileClick = { coroutineScope.launch { drawerState.open() } }
                         )
                         1 -> SearchScreen(
                             viewModel = viewModel,
-                            onProfileClick = { showProfileSettingsDialog = true }
+                            onProfileClick = { coroutineScope.launch { drawerState.open() } }
                         )
                         2 -> LibraryScreen(
                             viewModel = viewModel,
                             onCreatePlaylistClick = { showCreatePlaylistDialog = true },
                             onPlaylistClick = { activePlaylistForDetail = it },
-                            onProfileClick = { showProfileSettingsDialog = true }
+                            onProfileClick = { coroutineScope.launch { drawerState.open() } }
                         )
                     }
                 }
@@ -464,13 +488,23 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
             )
         }
 
-        // Profile & Settings Dialog
-        if (showProfileSettingsDialog) {
+        // Profile & Settings Screen (Animated Slide-up)
+        AnimatedVisibility(
+            visible = showProfileSettingsDialog,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(400, easing = EaseOutQuart)
+            ),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(400, easing = EaseInQuart)
+            )
+        ) {
             val originalPreset = remember { viewModel.themePreset }
             val originalIsDark = remember { viewModel.themeIsDark }
             val originalCustomColor = remember { viewModel.themeCustomColor }
 
-            ProfileSettingsDialog(
+            ProfileSettingsScreen(
                 viewModel = viewModel,
                 onDismiss = { saved ->
                     showProfileSettingsDialog = false
@@ -528,6 +562,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
             )
         }
     }
+}
 }
 
 @Composable
@@ -2907,7 +2942,7 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
 
 // ---------------- PROFILE & SETTINGS EDIT DIALOG ----------------
 @Composable
-fun ProfileSettingsDialog(
+fun ProfileSettingsScreen(
     viewModel: MusicViewModel,
     onDismiss: (saved: Boolean) -> Unit
 ) {
@@ -2960,370 +2995,1058 @@ fun ProfileSettingsDialog(
         nameOk && pathOk
     }
 
-    Dialog(onDismissRequest = { onDismiss(false) }) {
-        Surface(
+    // Expandable Row selection state
+    var expandedSection by remember { mutableStateOf<String?>(null) }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        color = SpotifyBlack
+    ) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-                .clip(RoundedCornerShape(16.dp)),
-            color = SpotifyMediumGray
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
+            // Header Bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { onDismiss(false) }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = ThemeWhite
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Settings",
+                    color = ThemeWhite,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Main Settings Scrollable List
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "Profile & Settings",
-                    color = ThemeWhite,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = "SoundScape v1.3",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-
-                // Editable Name
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = {
-                        newName = it
-                        if (it.trim().length < 2) {
-                            nameError = "Name must be at least 2 characters."
-                        } else if (!it.all { char -> char.isLetterOrDigit() || char == ' ' || char == '-' || char == '_' }) {
-                            nameError = "Only alphanumeric and spaces/hyphens allowed."
-                        } else {
-                            nameError = null
-                        }
-                    },
-                    label = { Text("Profile Name") },
-                    isError = nameError != null,
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = SpotifyLightGray,
-                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                        unfocusedLabelColor = SpotifyTextSecondary,
-                        focusedTextColor = ThemeWhite,
-                        unfocusedTextColor = ThemeWhite
-                    ),
-                    modifier = Modifier.fillMaxWidth().testTag("settings_name_input")
-                )
-                if (nameError != null) {
-                    Text(nameError!!, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
-                }
-
-                // Theme Settings Header
-                Text(
-                    text = "App Theme Preset",
-                    color = ThemeWhite,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Start)
-                )
-
-                // Theme Presets Grid / Rows
+                // "Free account" center text + "Go Premium" button
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val presets = listOf(
-                        Triple("green", "Emerald Green", Color(0xFF1DB954)),
-                        Triple("sunset", "Sunset Glow", Color(0xFFFF9800)),
-                        Triple("blue", "Electric Blue", Color(0xFF2979FF)),
-                        Triple("violet", "Amethyst violet", Color(0xFF9C27B0)),
-                        Triple("crimson", "Crimson Pulse", Color(0xFFE91E63))
-                    )
-                    
-                    presets.chunked(2).forEach { chunk ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            chunk.forEach { (key, title, color) ->
-                                val isSelected = selectedThemePreset == key
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) color.copy(alpha = 0.25f) else SpotifyBlack)
-                                        .border(
-                                            width = 1.5.dp,
-                                            color = if (isSelected) color else Color.Transparent,
-                                            shape = RoundedCornerShape(8.dp)
-                                        )
-                                        .clickable { selectedThemePreset = key }
-                                        .padding(10.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .clip(CircleShape)
-                                                .background(color)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = title,
-                                            color = Color.White,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                            if (chunk.size < 2) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-
-                // Custom theme option
-                val isCustomSelected = selectedThemePreset == "custom"
-                Row(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isCustomSelected) Color.White.copy(alpha = 0.1f) else SpotifyBlack)
-                        .border(
-                            width = 1.5.dp,
-                            color = if (isCustomSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .clickable { selectedThemePreset = "custom" }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 12.dp)
                 ) {
-                    RadioButton(
-                        selected = isCustomSelected,
-                        onClick = { selectedThemePreset = "custom" },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = MaterialTheme.colorScheme.primary,
-                            unselectedColor = Color.White
-                        )
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Customize Theme Color",
-                        color = Color.White,
-                        fontSize = 12.sp,
+                        text = "Free account",
+                        color = SpotifyTextSecondary,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
-                }
-
-                if (isCustomSelected) {
-                    Text(
-                        text = "Pick Custom Accent Splay",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.align(Alignment.Start)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            Toast.makeText(context, "SoundScape Premium is currently in beta! Enjoy all free features.", Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                        shape = RoundedCornerShape(24.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
                     ) {
-                        val colorSwatches = listOf(
-                            "#00FFCC" to Color(0xFF00FFCC), // Mint Teal
-                            "#FF007F" to Color(0xFFFF007F), // Neon Pink
-                            "#00E5FF" to Color(0xFF00E5FF), // Aqua Cyan
-                            "#FFE082" to Color(0xFFFFE082), // Soft Amber
-                            "#00E676" to Color(0xFF00E676), // Emerald
-                            "#BF5AF2" to Color(0xFFBF5AF2)  // Purple Bloom
+                        Text(
+                            text = "GO PREMIUM",
+                            color = Color.Black,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
                         )
-                        colorSwatches.forEach { (hex, tintColor) ->
-                            val isColorSelected = selectedCustomColor.equals(hex, ignoreCase = true)
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(tintColor)
-                                    .border(
-                                        width = 3.dp,
-                                        color = if (isColorSelected) Color.White else Color.Transparent,
-                                        shape = CircleShape
-                                    )
-                                    .clickable { selectedCustomColor = hex },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isColorSelected) {
-                                    Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        }
                     }
                 }
 
-                // Appearance Mode Toggle (Light / Dark Theme)
-                Row(
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // --- 1. Account & Appearance Section ---
+                val isAccountExpanded = expandedSection == "account"
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(SpotifyBlack)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (selectedIsDark) Icons.Filled.Brightness4 else Icons.Filled.Brightness7,
-                            contentDescription = "Appearance Mode",
-                            tint = ThemeWhite,
-                            modifier = Modifier.size(20.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SpotifyMediumGray)
+                        .border(
+                            width = 1.dp,
+                            color = if (isAccountExpanded) SpotifyGreen.copy(alpha = 0.4f) else SpotifyLightGray.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(12.dp)
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
+                        .clickable { expandedSection = if (isAccountExpanded) null else "account" }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp, 36.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (isAccountExpanded) SpotifyGreen else SpotifyTextSecondary.copy(alpha = 0.5f))
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = if (isAccountExpanded) SpotifyGreen else ThemeWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Appearance Mode",
+                                text = "Account & Appearance",
                                 color = ThemeWhite,
-                                fontSize = 12.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = if (selectedIsDark) "Dark Mode" else "Light Mode",
+                                text = "Profile name • Accent presets • Light/Dark Mode",
                                 color = SpotifyTextSecondary,
-                                fontSize = 10.sp
+                                fontSize = 12.sp
                             )
                         }
-                    }
-                    Switch(
-                        checked = selectedIsDark,
-                        onCheckedChange = { selectedIsDark = it },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.primary,
-                            checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                            uncheckedThumbColor = ThemeWhite,
-                            uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
+                        Icon(
+                            imageVector = if (isAccountExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = SpotifyTextSecondary
                         )
-                    )
+                    }
+
+                    if (isAccountExpanded) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.clickable(enabled = false) {}
+                        ) {
+                            Text(
+                                text = "SoundScape v1.4",
+                                color = SpotifyGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+
+                            // Editable Name
+                            OutlinedTextField(
+                                value = newName,
+                                onValueChange = {
+                                    newName = it
+                                    if (it.trim().length < 2) {
+                                        nameError = "Name must be at least 2 characters."
+                                    } else if (!it.all { char -> char.isLetterOrDigit() || char == ' ' || char == '-' || char == '_' }) {
+                                        nameError = "Only alphanumeric and spaces/hyphens allowed."
+                                    } else {
+                                        nameError = null
+                                    }
+                                },
+                                label = { Text("Profile Name", color = SpotifyTextSecondary) },
+                                isError = nameError != null,
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = SpotifyGreen,
+                                    unfocusedBorderColor = SpotifyLightGray.copy(alpha = 0.5f),
+                                    focusedLabelColor = SpotifyGreen,
+                                    unfocusedLabelColor = SpotifyTextSecondary,
+                                    focusedTextColor = ThemeWhite,
+                                    unfocusedTextColor = ThemeWhite
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("settings_name_input")
+                            )
+                            if (nameError != null) {
+                                Text(nameError!!, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                            }
+
+                            // Theme Settings Header
+                            Text(
+                                text = "App Theme Preset",
+                                color = ThemeWhite,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // Theme Presets Grid / Rows
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val presets = listOf(
+                                    Triple("green", "Emerald Green", Color(0xFF1DB954)),
+                                    Triple("sunset", "Sunset Glow", Color(0xFFFF9800)),
+                                    Triple("blue", "Electric Blue", Color(0xFF2979FF)),
+                                    Triple("violet", "Amethyst violet", Color(0xFF9C27B0)),
+                                    Triple("crimson", "Crimson Pulse", Color(0xFFE91E63))
+                                )
+                                
+                                presets.chunked(2).forEach { chunk ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        chunk.forEach { (key, title, color) ->
+                                            val isSelected = selectedThemePreset == key
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (isSelected) color.copy(alpha = 0.25f) else SpotifyBlack)
+                                                    .border(
+                                                        width = 1.5.dp,
+                                                        color = if (isSelected) color else Color.Transparent,
+                                                        shape = RoundedCornerShape(8.dp)
+                                                    )
+                                                    .clickable { selectedThemePreset = key }
+                                                    .padding(10.dp),
+                                                contentAlignment = Alignment.CenterStart
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(14.dp)
+                                                            .clip(CircleShape)
+                                                            .background(color)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = title,
+                                                        color = ThemeWhite,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (chunk.size < 2) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Custom theme option
+                            val isCustomSelected = selectedThemePreset == "custom"
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isCustomSelected) SpotifyGreen.copy(alpha = 0.1f) else SpotifyBlack)
+                                    .border(
+                                        width = 1.5.dp,
+                                        color = if (isCustomSelected) SpotifyGreen else Color.Transparent,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { selectedThemePreset = "custom" }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isCustomSelected,
+                                    onClick = { selectedThemePreset = "custom" },
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = SpotifyGreen,
+                                        unselectedColor = ThemeWhite
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Customize Theme Color",
+                                    color = ThemeWhite,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (isCustomSelected) {
+                                Text(
+                                    text = "Pick Custom Accent Splay",
+                                    color = ThemeWhite,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val colorSwatches = listOf(
+                                        "#00FFCC" to Color(0xFF00FFCC), // Mint Teal
+                                        "#FF007F" to Color(0xFFFF007F), // Neon Pink
+                                        "#00E5FF" to Color(0xFF00E5FF), // Aqua Cyan
+                                        "#FFE082" to Color(0xFFFFE082), // Soft Amber
+                                        "#00E676" to Color(0xFF00E676), // Emerald
+                                        "#BF5AF2" to Color(0xFFBF5AF2)  // Purple Bloom
+                                    )
+                                    colorSwatches.forEach { (hex, tintColor) ->
+                                        val isColorSelected = selectedCustomColor.equals(hex, ignoreCase = true)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(34.dp)
+                                                .clip(CircleShape)
+                                                .background(tintColor)
+                                                .border(
+                                                    width = 3.dp,
+                                                    color = if (isColorSelected) ThemeWhite else Color.Transparent,
+                                                    shape = CircleShape
+                                                )
+                                                .clickable { selectedCustomColor = hex },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isColorSelected) {
+                                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Appearance Mode Toggle (Light / Dark Theme)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SpotifyBlack)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (selectedIsDark) Icons.Filled.Brightness4 else Icons.Filled.Brightness7,
+                                        contentDescription = "Appearance Mode",
+                                        tint = ThemeWhite,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = "Appearance Mode",
+                                            color = ThemeWhite,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = if (selectedIsDark) "Dark Mode" else "Light Mode",
+                                            color = SpotifyTextSecondary,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                                Switch(
+                                    checked = selectedIsDark,
+                                    onCheckedChange = { selectedIsDark = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = SpotifyBlack,
+                                        checkedTrackColor = SpotifyGreen,
+                                        uncheckedThumbColor = ThemeWhite,
+                                        uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
 
-                // Path reselection list
-                Text(
-                    text = "Reselect Scan Folder Location",
-                    color = ThemeWhite,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.Start)
-                )
-
+                // --- 2. Folder Scanning Section ---
+                val isFolderExpanded = expandedSection == "folder"
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(SpotifyBlack)
-                        .padding(4.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SpotifyMediumGray)
+                        .border(
+                            width = 1.dp,
+                            color = if (isFolderExpanded) SpotifyGreen.copy(alpha = 0.4f) else SpotifyLightGray.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable { expandedSection = if (isFolderExpanded) null else "folder" }
+                        .padding(16.dp)
                 ) {
-                    listOf(
-                        "Standard Music Folder" to "Music Presets",
-                        "Downloads Folder" to "Downloads Folder",
-                        "Custom Folder name" to "Custom Folder",
-                        "Scan Entire Storage (No filtering)" to "Entire Storage"
-                    ).forEach { (display, type) ->
-                        val isSelected = pathType == type
-                        Row(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { pathType = type }
-                                .padding(vertical = 8.dp, horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = { pathType = type },
-                                colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary, unselectedColor = ThemeWhite)
+                                .size(4.dp, 36.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (isFolderExpanded) SpotifyGreen else SpotifyTextSecondary.copy(alpha = 0.5f))
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = if (isFolderExpanded) SpotifyGreen else ThemeWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Folder Scanning",
+                                color = ThemeWhite,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(text = display, color = if (isSelected) MaterialTheme.colorScheme.primary else ThemeWhite, fontSize = 12.sp)
+                            Text(
+                                text = "Scan path presets • Reselect folder location",
+                                color = SpotifyTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isFolderExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = SpotifyTextSecondary
+                        )
+                    }
+
+                    if (isFolderExpanded) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.clickable(enabled = false) {}
+                        ) {
+                            Text(
+                                text = "Reselect Scan Folder Location",
+                                color = ThemeWhite,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SpotifyBlack)
+                                    .padding(4.dp)
+                            ) {
+                                listOf(
+                                    "Standard Music Folder" to "Music Presets",
+                                    "Downloads Folder" to "Downloads Folder",
+                                    "Custom Folder name" to "Custom Folder",
+                                    "Scan Entire Storage (No filtering)" to "Entire Storage"
+                                ).forEach { (display, type) ->
+                                    val isSelected = pathType == type
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { pathType = type }
+                                            .padding(vertical = 8.dp, horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = isSelected,
+                                            onClick = { pathType = type },
+                                            colors = RadioButtonDefaults.colors(selectedColor = SpotifyGreen, unselectedColor = ThemeWhite)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(text = display, color = if (isSelected) SpotifyGreen else ThemeWhite, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+
+                            // Document Tree File Explorer Action Button for Settings Screen
+                            Button(
+                                onClick = { pickerLauncher.launch(null) },
+                                colors = ButtonDefaults.buttonColors(containerColor = SpotifyBlack),
+                                shape = RoundedCornerShape(24.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                Icon(Icons.Filled.Folder, contentDescription = "Folder Picker", tint = SpotifyGreen)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Select via File Explorer", color = ThemeWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            if (pathType == "Custom Folder") {
+                                OutlinedTextField(
+                                    value = customPathInput,
+                                    onValueChange = {
+                                        customPathInput = it
+                                        if (it.trim().isEmpty()) {
+                                            pathError = "Custom folder name suffix cannot be empty."
+                                        } else if (!it.all { char -> char.isLetterOrDigit() || char == '_' || char == '-' }) {
+                                            pathError = "Only alphanumeric, hyphens & underscores allowed."
+                                        } else {
+                                            pathError = null
+                                        }
+                                    },
+                                    label = { Text("Custom Folder Suffix", color = SpotifyTextSecondary) },
+                                    isError = pathError != null,
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = SpotifyGreen,
+                                        unfocusedBorderColor = SpotifyLightGray.copy(alpha = 0.5f),
+                                        focusedLabelColor = SpotifyGreen,
+                                        unfocusedLabelColor = SpotifyTextSecondary,
+                                        focusedTextColor = ThemeWhite,
+                                        unfocusedTextColor = ThemeWhite
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().testTag("settings_custom_path_input")
+                                )
+                                if (pathError != null) {
+                                    Text(pathError!!, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                                }
+                            }
                         }
                     }
                 }
 
-                // Document Tree File Explorer Action Button for Settings Dialog
-                Button(
-                    onClick = { pickerLauncher.launch(null) },
-                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyBlack),
-                    shape = RoundedCornerShape(24.dp),
+                // --- 3. Equalizer & Audio Section ---
+                val isEqExpanded = expandedSection == "equalizer"
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SpotifyMediumGray)
+                        .border(
+                            width = 1.dp,
+                            color = if (isEqExpanded) SpotifyGreen.copy(alpha = 0.4f) else SpotifyLightGray.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable { expandedSection = if (isEqExpanded) null else "equalizer" }
+                        .padding(16.dp)
                 ) {
-                    Icon(Icons.Filled.Folder, contentDescription = "Folder Picker", tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Select via File Explorer", color = ThemeWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp, 36.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (isEqExpanded) SpotifyGreen else SpotifyTextSecondary.copy(alpha = 0.5f))
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = null,
+                            tint = if (isEqExpanded) SpotifyGreen else ThemeWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Equalizer & Audio",
+                                color = ThemeWhite,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Equalizer bands • Audio presets • Bass boost strength",
+                                color = SpotifyTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isEqExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = SpotifyTextSecondary
+                        )
+                    }
 
-                if (pathType == "Custom Folder") {
-                    OutlinedTextField(
-                        value = customPathInput,
-                        onValueChange = {
-                            customPathInput = it
-                            if (it.trim().isEmpty()) {
-                                pathError = "Custom folder name suffix cannot be empty."
-                            } else if (!it.all { char -> char.isLetterOrDigit() || char == '_' || char == '-' }) {
-                                pathError = "Only alphanumeric, hyphens & underscores allowed."
-                            } else {
-                                pathError = null
+                    if (isEqExpanded) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.clickable(enabled = false) {}
+                        ) {
+                            var showPresetMenu by remember { mutableStateOf(false) }
+
+                            // Equalizer Switch Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.GraphicEq, contentDescription = null, tint = SpotifyGreen)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Equalizer State", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
+                                }
+                                Switch(
+                                    checked = viewModel.eqEnabled,
+                                    onCheckedChange = { viewModel.toggleEqualizer() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = SpotifyBlack,
+                                        checkedTrackColor = SpotifyGreen,
+                                        uncheckedThumbColor = ThemeWhite,
+                                        uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
+                                    )
+                                )
                             }
-                        },
-                        label = { Text("Custom Folder Suffix") },
-                        isError = pathError != null,
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = SpotifyLightGray,
-                            focusedLabelColor = MaterialTheme.colorScheme.primary,
-                            unfocusedLabelColor = SpotifyTextSecondary,
-                            focusedTextColor = ThemeWhite,
-                            unfocusedTextColor = ThemeWhite
-                        ),
-                        modifier = Modifier.fillMaxWidth().testTag("settings_custom_path_input")
-                    )
-                    if (pathError != null) {
-                        Text(pathError!!, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+
+                            // Preset Dropdown (enabled only if EQ is enabled)
+                            if (viewModel.eqEnabled) {
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    Button(
+                                        onClick = { showPresetMenu = true },
+                                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyBlack),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Select Preset", color = ThemeWhite)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = ThemeWhite)
+                                    }
+                                    DropdownMenu(
+                                        expanded = showPresetMenu,
+                                        onDismissRequest = { showPresetMenu = false },
+                                        modifier = Modifier.background(SpotifyMediumGray)
+                                    ) {
+                                        val presets = listOf("Flat", "Bass Booster", "Electronic", "Pop", "Rock", "Classical")
+                                        presets.forEach { preset ->
+                                            DropdownMenuItem(
+                                                text = { Text(preset, color = ThemeWhite) },
+                                                onClick = {
+                                                    viewModel.applyEqualizerPreset(preset)
+                                                    showPresetMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // 5 vertical sliders
+                                Text("Frequency Bands", color = SpotifyTextSecondary, fontSize = 12.sp)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(150.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    val frequencies = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
+                                    frequencies.forEachIndexed { index, freq ->
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            val bandLevel = viewModel.eqBands.getOrElse(index) { 0 }
+                                            Text("${bandLevel / 100}dB", color = ThemeWhite, fontSize = 11.sp)
+                                            Slider(
+                                                value = bandLevel.toFloat(),
+                                                onValueChange = { value ->
+                                                    viewModel.updateEqualizerBand(index, value.toInt())
+                                                },
+                                                valueRange = -1500f..1500f,
+                                                colors = SliderDefaults.colors(
+                                                    thumbColor = SpotifyGreen,
+                                                    activeTrackColor = SpotifyGreen,
+                                                    inactiveTrackColor = SpotifyBlack
+                                                ),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .graphicsLayer {
+                                                        rotationZ = -90f
+                                                    }
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(freq, color = SpotifyTextSecondary, fontSize = 10.sp)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Bass Boost Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Tune, contentDescription = null, tint = SpotifyGreen)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Bass Boost State", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
+                                }
+                                Switch(
+                                    checked = viewModel.bbEnabled,
+                                    onCheckedChange = { viewModel.toggleBassBoost() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = SpotifyBlack,
+                                        checkedTrackColor = SpotifyGreen,
+                                        uncheckedThumbColor = ThemeWhite,
+                                        uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
+                                    )
+                                )
+                            }
+
+                            if (viewModel.bbEnabled) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Strength", color = ThemeWhite, fontSize = 13.sp, modifier = Modifier.width(70.dp))
+                                    Slider(
+                                        value = viewModel.bbStrength.toFloat(),
+                                        onValueChange = { value ->
+                                            viewModel.updateBassBoostStrength(value.toInt())
+                                        },
+                                        valueRange = 0f..1000f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = SpotifyGreen,
+                                            activeTrackColor = SpotifyGreen,
+                                            inactiveTrackColor = SpotifyBlack
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("${viewModel.bbStrength / 10}%", color = ThemeWhite, fontSize = 12.sp)
+                                }
+                            }
+                        }
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
+            // Persistent bottom action bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { onDismiss(false) }) {
+                    Text("Cancel", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Button(
+                    onClick = {
+                        if (isFormValid) {
+                            val finalPath = when (pathType) {
+                                "Music Presets" -> "Music"
+                                "Downloads Folder" -> "Download"
+                                "Entire Storage" -> ""
+                                else -> customPathInput.trim()
+                            }
+                            viewModel.updateProfile(newName.trim(), finalPath)
+                            viewModel.updateTheme(selectedThemePreset, selectedIsDark, selectedCustomColor)
+                            onDismiss(true)
+                        }
+                    },
+                    enabled = isFormValid,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SpotifyGreen,
+                        disabledContainerColor = SpotifyLightGray.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Text(
+                        text = "Save & Rescan",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---------------- LEFT SIDEBAR DRAWER COMPOSABLE ----------------
+@Composable
+fun SpotifySidebar(
+    viewModel: MusicViewModel,
+    onClose: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToRecents: () -> Unit
+) {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(320.dp)
+            .background(SpotifyDark)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(20.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // Top row: Avatar + Profile Name & Close Button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable {
+                        onNavigateToSettings()
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clip(CircleShape)
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(SpotifyGreen, Color(0xFF1DB954).copy(alpha = 0.5f))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = viewModel.userName.uppercase().take(1),
+                        color = Color.Black,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 22.sp
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = viewModel.userName,
+                        color = ThemeWhite,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "View profile",
+                        color = SpotifyGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close Drawer",
+                    tint = ThemeWhite
+                )
+            }
+        }
+
+        // Divider
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(SpotifyLightGray.copy(alpha = 0.3f))
+        )
+
+        // Navigation list
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val navItems = listOf(
+                Triple("Add account", Icons.Default.PersonAdd, {
+                    Toast.makeText(context, "Multiple accounts feature coming soon!", Toast.LENGTH_SHORT).show()
+                }),
+                Triple("Listening stats", Icons.Default.BarChart, {
+                    Toast.makeText(context, "Stats are compiled after 24 hours of listening!", Toast.LENGTH_SHORT).show()
+                }),
+                Triple("Recents", Icons.Default.History, {
+                    onNavigateToRecents()
+                }),
+                Triple("Your Updates", Icons.Default.Notifications, {
+                    Toast.makeText(context, "You are up to date! SoundScape v1.4", Toast.LENGTH_SHORT).show()
+                }),
+                Triple("Settings and privacy", Icons.Default.Settings, {
+                    onNavigateToSettings()
+                })
+            )
+
+            navItems.forEach { (label, icon, onClickAction) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onClickAction() }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = ThemeWhite.copy(alpha = 0.85f),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = label,
+                        color = ThemeWhite,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // Divider
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(SpotifyLightGray.copy(alpha = 0.3f))
+        )
+
+        // Activity Row Section
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "FRIEND ACTIVITY",
+                color = SpotifyTextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Online friend avatar
+                Box(
+                    modifier = Modifier.size(46.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(SpotifyMediumGray),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "A",
+                            color = ThemeWhite,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
+                    // Status Badge (Green dot)
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1DB954))
+                            .border(1.5.dp, SpotifyDark, CircleShape)
+                            .align(Alignment.BottomEnd)
+                    )
+                }
+
+                // Invite Friends action button (Circle with plus icon)
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .border(1.5.dp, SpotifyLightGray.copy(alpha = 0.5f), CircleShape)
+                        .clickable {
+                            Toast.makeText(context, "Invite link copied to clipboard!", Toast.LENGTH_SHORT).show()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Invite Friends",
+                        tint = SpotifyGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Text(
+                    text = "Invite friends to share activity",
+                    color = SpotifyTextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        // Divider
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(SpotifyLightGray.copy(alpha = 0.3f))
+        )
+
+        // Messages Box Section
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(SpotifyMediumGray)
+                .padding(16.dp)
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { onDismiss(false) }) {
-                        Text("Cancel", color = ThemeWhite)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            if (isFormValid) {
-                                val finalPath = when (pathType) {
-                                    "Music Presets" -> "Music"
-                                    "Downloads Folder" -> "Download"
-                                    "Entire Storage" -> ""
-                                    else -> customPathInput.trim()
-                                }
-                                viewModel.updateProfile(newName.trim(), finalPath)
-                                viewModel.updateTheme(selectedThemePreset, selectedIsDark, selectedCustomColor)
-                                onDismiss(true)
-                            }
-                        },
-                        enabled = isFormValid,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, disabledContainerColor = SpotifyLightGray)
+                    Text(
+                        text = "Inbox Messages",
+                        color = ThemeWhite,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Mail,
+                        contentDescription = "Inbox",
+                        tint = SpotifyGreen,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Text(
+                    text = "Connect with your friends to exchange songs, playlists, and discover what others are currently jamming to!",
+                    color = SpotifyTextSecondary,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp
+                )
+
+                Button(
+                    onClick = {
+                        Toast.makeText(context, "Select a friend to message!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Save & Rescan", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "New Message",
+                            tint = Color.Black,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "New message",
+                            color = Color.Black,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

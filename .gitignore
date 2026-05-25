@@ -14,6 +14,7 @@ local.properties
 .env
 .env.local
 .env.*.local
+temp
 
 # Keystore and Keys
 *.keystore
