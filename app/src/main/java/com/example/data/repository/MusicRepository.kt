@@ -218,4 +218,25 @@ class MusicRepository(
     suspend fun saveSongOverride(songId: String, title: String, artist: String, album: String) = withContext(Dispatchers.IO) {
         musicDao.insertOverride(SongOverrideEntity(songId, title, artist, album))
     }
+
+    val recentPlays: Flow<List<RecentPlayEntity>> = musicDao.getRecentPlays()
+
+    suspend fun addRecentPlay(song: Song) = withContext(Dispatchers.IO) {
+        val cutoff = System.currentTimeMillis() - 15552000000L // 6 months in ms
+        musicDao.deleteOldRecentPlays(cutoff)
+        musicDao.insertRecentPlay(
+            RecentPlayEntity(
+                songId = song.id,
+                title = song.title,
+                artist = song.artist,
+                album = song.album,
+                path = song.path,
+                durationMs = song.durationMs,
+                albumArtUri = song.albumArtUri,
+                isLocal = song.isLocal,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+    }
 }
+

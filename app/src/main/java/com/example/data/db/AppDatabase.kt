@@ -46,6 +46,20 @@ data class SongOverrideEntity(
     val album: String
 )
 
+@Entity(tableName = "recent_plays")
+data class RecentPlayEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val songId: String,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val path: String,
+    val durationMs: Long,
+    val albumArtUri: String?,
+    val isLocal: Boolean,
+    val timestamp: Long
+)
+
 @Dao
 interface MusicDao {
     @Query("SELECT * FROM favorites")
@@ -83,11 +97,26 @@ interface MusicDao {
 
     @Query("SELECT * FROM song_overrides")
     fun getOverrides(): Flow<List<SongOverrideEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertRecentPlay(recentPlay: RecentPlayEntity)
+
+    @Query("SELECT * FROM recent_plays ORDER BY timestamp DESC")
+    fun getRecentPlays(): Flow<List<RecentPlayEntity>>
+
+    @Query("DELETE FROM recent_plays WHERE timestamp < :cutoffTime")
+    fun deleteOldRecentPlays(cutoffTime: Long)
 }
 
 @Database(
-    entities = [FavoriteEntity::class, PlaylistEntity::class, PlaylistSongCrossRef::class, SongOverrideEntity::class],
-    version = 1,
+    entities = [
+        FavoriteEntity::class,
+        PlaylistEntity::class,
+        PlaylistSongCrossRef::class,
+        SongOverrideEntity::class,
+        RecentPlayEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

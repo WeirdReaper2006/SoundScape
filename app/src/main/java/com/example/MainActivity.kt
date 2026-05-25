@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -273,12 +274,13 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
 
     // Real-time cohesive back and navigation routing interceptor
-    BackHandler(enabled = isExpandedPlayerVisible || showQueueOverlay || showProfileSettingsDialog || activePlaylistForDetail != null || viewModel.activeTabIndex != 0) {
+    BackHandler(enabled = isExpandedPlayerVisible || showQueueOverlay || showProfileSettingsDialog || activePlaylistForDetail != null || viewModel.showRecentsPage || viewModel.activeTabIndex != 0) {
         when {
             showQueueOverlay -> showQueueOverlay = false
             showProfileSettingsDialog -> showProfileSettingsDialog = false
             isExpandedPlayerVisible -> isExpandedPlayerVisible = false
             activePlaylistForDetail != null -> activePlaylistForDetail = null
+            viewModel.showRecentsPage -> viewModel.showRecentsPage = false
             viewModel.activeTabIndex != 0 -> viewModel.activeTabIndex = 0
         }
     }
@@ -379,6 +381,11 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         playlist = activePlaylistForDetail!!,
                         viewModel = viewModel,
                         onBack = { activePlaylistForDetail = null }
+                    )
+                } else if (viewModel.showRecentsPage) {
+                    RecentsScreen(
+                        viewModel = viewModel,
+                        onBack = { viewModel.showRecentsPage = false }
                     )
                 } else {
                     when (viewModel.activeTabIndex) {
@@ -634,6 +641,11 @@ fun HomeScreen(
     val localContext = LocalContext.current
     val favoriteList by viewModel.favoriteSongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val recentPlays by viewModel.recentPlays.collectAsStateWithLifecycle(initialValue = emptyList())
+
+    val recentHomeList = remember(recentPlays) {
+        recentPlays.distinctBy { it.songId }.take(5)
+    }
 
     val greeting = remember {
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
@@ -696,6 +708,72 @@ fun HomeScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+            }
+        }
+
+        // Horizontal scrollable Recents Section
+        if (recentHomeList.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Recents",
+                        color = ThemeWhite,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Show All",
+                        color = SpotifyGreen,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clickable { viewModel.showRecentsPage = true }
+                            .testTag("btn_show_all_recents")
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(recentHomeList) { play ->
+                        val song = play.toSong()
+                        Column(
+                            modifier = Modifier
+                                .width(110.dp)
+                                .clickable { viewModel.playSong(song) }
+                        ) {
+                            SoundScapeArtwork(
+                                song = song,
+                                modifier = Modifier
+                                    .size(110.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = song.title,
+                                color = ThemeWhite,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = song.artist,
+                                color = SpotifyTextSecondary,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -3882,5 +3960,119 @@ fun ImportM3UDialog(
                 }
             }
         }
+    }
+}
+
+// ---------------- PREMIUM COMPOSABLE: RECENTS HISTORY SCREEN ----------------
+@Composable
+fun RecentsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
+    val recentPlays by viewModel.recentPlays.collectAsStateWithLifecycle(initialValue = emptyList())
+
+    val groupedRecents = remember(recentPlays) {
+        recentPlays.groupBy { entity ->
+            getFormattedDateHeader(entity.timestamp)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(36.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = ThemeWhite
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "Recently Played",
+                color = ThemeWhite,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (recentPlays.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(64.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = "No play history recorded yet", color = SpotifyTextSecondary, fontSize = 14.sp)
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                groupedRecents.forEach { (dateHeader, plays) ->
+                    item {
+                        Text(
+                            text = dateHeader,
+                            color = SpotifyGreen,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp, start = 4.dp)
+                        )
+                    }
+
+                    items(plays) { play ->
+                        val song = play.toSong()
+                        SongItemRow(
+                            song = song,
+                            onClick = { viewModel.playSong(song, plays.map { it.toSong() }) },
+                            onAddToPlaylist = { viewModel.showAddToPlaylistDialog = song },
+                            onAddToQueue = { viewModel.addToQueue(song) },
+                            onEditTags = { viewModel.showEditTagsDialog = song }
+                        )
+                    }
+                }
+                item {
+                    Spacer(modifier = Modifier.height(48.dp))
+                }
+            }
+        }
+    }
+}
+
+fun com.example.data.db.RecentPlayEntity.toSong() = Song(
+    id = songId,
+    title = title,
+    artist = artist,
+    album = album,
+    path = path,
+    durationMs = durationMs,
+    albumArtUri = albumArtUri,
+    isLocal = isLocal,
+    dateAdded = timestamp
+)
+
+fun getFormattedDateHeader(timestamp: Long): String {
+    val now = Calendar.getInstance()
+    val time = Calendar.getInstance().apply { timeInMillis = timestamp }
+    
+    return when {
+        now.get(Calendar.YEAR) == time.get(Calendar.YEAR) &&
+        now.get(Calendar.DAY_OF_YEAR) == time.get(Calendar.DAY_OF_YEAR) -> "Today"
+        
+        now.get(Calendar.YEAR) == time.get(Calendar.YEAR) &&
+        now.get(Calendar.DAY_OF_YEAR) - time.get(Calendar.DAY_OF_YEAR) == 1 -> "Yesterday"
+        
+        else -> java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(timestamp))
     }
 }

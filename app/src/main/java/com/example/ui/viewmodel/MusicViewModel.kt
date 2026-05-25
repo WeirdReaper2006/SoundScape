@@ -75,6 +75,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val playlists: StateFlow<List<PlaylistEntity>> = repository.playlists
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val recentPlays: StateFlow<List<com.example.data.db.RecentPlayEntity>> = repository.recentPlays
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    var showRecentsPage by mutableStateOf(false)
+
     // Tracks current song list playing in player to handle back/next cues
     var currentQueue by mutableStateOf<List<Song>>(emptyList())
         private set
@@ -435,6 +440,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             controller.play()
             currentPlayingSong = song
             updatePlaybackStateFromController()
+
+            viewModelScope.launch(Dispatchers.IO) {
+                repository.addRecentPlay(song)
+            }
         }
     }
 
