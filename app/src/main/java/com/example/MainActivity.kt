@@ -3971,6 +3971,8 @@ fun RecentsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
     val groupedRecents = remember(recentPlays) {
         recentPlays.groupBy { entity ->
             getFormattedDateHeader(entity.timestamp)
+        }.mapValues { (_, plays) ->
+            plays.distinctBy { it.songId }
         }
     }
 

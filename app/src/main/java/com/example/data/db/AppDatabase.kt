@@ -106,6 +106,9 @@ interface MusicDao {
 
     @Query("DELETE FROM recent_plays WHERE timestamp < :cutoffTime")
     fun deleteOldRecentPlays(cutoffTime: Long)
+
+    @Query("DELETE FROM recent_plays WHERE songId = :songId AND timestamp >= :startOfDay")
+    fun deleteRecentPlayForSongOnDay(songId: String, startOfDay: Long)
 }
 
 @Database(

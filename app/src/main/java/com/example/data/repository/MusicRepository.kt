@@ -224,6 +224,16 @@ class MusicRepository(
     suspend fun addRecentPlay(song: Song) = withContext(Dispatchers.IO) {
         val cutoff = System.currentTimeMillis() - 15552000000L // 6 months in ms
         musicDao.deleteOldRecentPlays(cutoff)
+        
+        // Remove previous play log of the same song on the current calendar day
+        val cal = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        musicDao.deleteRecentPlayForSongOnDay(song.id, cal.timeInMillis)
+
         musicDao.insertRecentPlay(
             RecentPlayEntity(
                 songId = song.id,
