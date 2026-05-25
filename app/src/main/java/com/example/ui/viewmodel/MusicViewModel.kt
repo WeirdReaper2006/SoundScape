@@ -90,6 +90,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     var activeSortOrder by mutableStateOf(SortOrder.ASCENDING)
         private set
 
+    var isLibraryGridView by mutableStateOf(false)
+        private set
+
     // Active playback properties
     var currentPlayingSong by mutableStateOf<Song?>(null)
         private set
@@ -139,7 +142,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     var bbStrength by mutableStateOf(0)
         private set
 
+    var showEqualizerDialogGlobally by mutableStateOf(false)
+
     val eqBands = mutableStateListOf(0, 0, 0, 0, 0)
+
 
     // Song Metadata Overrides
     var songOverrides by mutableStateOf<Map<String, com.example.data.db.SongOverrideEntity>>(emptyMap())
@@ -195,6 +201,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         themePreset = prefs.getString("theme_preset", "green") ?: "green"
         themeIsDark = prefs.getBoolean("theme_is_dark", true)
         themeCustomColor = prefs.getString("theme_custom_color", "#00E5FF") ?: "#00E5FF"
+        
+        val sortCriteriaStr = prefs.getString("sort_criteria", SortCriteria.TITLE.name) ?: SortCriteria.TITLE.name
+        val sortOrderStr = prefs.getString("sort_order", SortOrder.ASCENDING.name) ?: SortOrder.ASCENDING.name
+        activeSortCriteria = try { SortCriteria.valueOf(sortCriteriaStr) } catch(e: Exception) { SortCriteria.TITLE }
+        activeSortOrder = try { SortOrder.valueOf(sortOrderStr) } catch(e: Exception) { SortOrder.ASCENDING }
+        isLibraryGridView = prefs.getBoolean("library_grid_view", false)
     }
 
     fun updateProfile(name: String, path: String) {
@@ -324,7 +336,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSort(criteria: SortCriteria, order: SortOrder) {
         activeSortCriteria = criteria
         activeSortOrder = order
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("sort_criteria", criteria.name)
+            .putString("sort_order", order.name)
+            .apply()
         applySortingAndFiltering()
+    }
+
+    fun toggleLibraryLayout() {
+        isLibraryGridView = !isLibraryGridView
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("library_grid_view", isLibraryGridView).apply()
     }
 
     private fun sortSongsList(list: List<Song>, criteria: SortCriteria, order: SortOrder): List<Song> {
