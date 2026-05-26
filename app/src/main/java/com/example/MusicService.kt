@@ -2,12 +2,17 @@ package com.example
 
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
@@ -19,6 +24,17 @@ class MusicService : MediaSessionService() {
     private var equalizer: android.media.audiofx.Equalizer? = null
     private var bassBoost: android.media.audiofx.BassBoost? = null
 
+    private val monoAudioProcessor = MonoAudioProcessor()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var hasAutomixedCurrentTrack = false
+
+    private val checkPlaybackRunnable = object : Runnable {
+        override fun run() {
+            checkPlaybackProgress()
+            mainHandler.postDelayed(this, 100)
+        }
+    }
+
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
@@ -27,8 +43,21 @@ class MusicService : MediaSessionService() {
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
             .build()
+
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: android.content.Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): androidx.media3.exoplayer.audio.AudioSink? {
+                val processors = arrayOf<androidx.media3.common.audio.AudioProcessor>(monoAudioProcessor)
+                return DefaultAudioSink.Builder(context)
+                    .setAudioProcessors(processors)
+                    .build()
+            }
+        }
             
-        player = ExoPlayer.Builder(this)
+        player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(audioAttributes, true) // Handles auto-pauses/resumes on call interruptions
             .setHandleAudioBecomingNoisy(true) // Pauses automatically when headphones are unplugged
             .build()
@@ -39,7 +68,39 @@ class MusicService : MediaSessionService() {
                     setupAudioEffects(audioSessionId)
                 }
             }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) {
+                    mainHandler.removeCallbacks(checkPlaybackRunnable)
+                    mainHandler.post(checkPlaybackRunnable)
+                } else {
+                    mainHandler.removeCallbacks(checkPlaybackRunnable)
+                }
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                hasAutomixedCurrentTrack = false
+                
+                val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+                val gapless = prefs.getBoolean("gapless_playback", true)
+                
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !gapless) {
+                    player?.pause()
+                    mainHandler.postDelayed({
+                        player?.play()
+                    }, 1000)
+                }
+                
+                val crossfadeDurationSec = prefs.getInt("crossfade_duration", 0)
+                if (crossfadeDurationSec > 0) {
+                    player?.volume = 0f
+                } else {
+                    player?.volume = 1.0f
+                }
+            }
         })
+
+        reloadPlaybackSettings()
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -102,9 +163,66 @@ class MusicService : MediaSessionService() {
         }
     }
 
+    private fun reloadPlaybackSettings() {
+        try {
+            val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+            val monoEnabled = prefs.getBoolean("mono_audio", false)
+            monoAudioProcessor.monoEnabled = monoEnabled
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun checkPlaybackProgress() {
+        val p = player ?: return
+        if (!p.isPlaying) return
+
+        val currentPosition = p.currentPosition
+        val duration = p.duration
+        
+        if (duration <= 0) return
+
+        val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+        val crossfadeDurationSec = prefs.getInt("crossfade_duration", 0)
+        val automixEnabled = prefs.getBoolean("automix", true)
+
+        if (crossfadeDurationSec > 0) {
+            val fadeDurationMs = crossfadeDurationSec * 1000L
+            
+            // Automix early transition
+            if (automixEnabled && !hasAutomixedCurrentTrack && p.hasNextMediaItem() && (duration - currentPosition <= 3000L)) {
+                hasAutomixedCurrentTrack = true
+                p.seekToNextMediaItem()
+                return
+            }
+
+            // Crossfade volume
+            if (duration - currentPosition <= fadeDurationMs) {
+                // Fade out
+                val fadeOutFactor = (duration - currentPosition).toFloat() / fadeDurationMs
+                p.volume = fadeOutFactor.coerceIn(0f, 1f)
+            } else if (currentPosition < fadeDurationMs) {
+                // Fade in
+                val fadeInFactor = currentPosition.toFloat() / fadeDurationMs
+                p.volume = fadeInFactor.coerceIn(0f, 1f)
+            } else {
+                p.volume = 1.0f
+            }
+        } else {
+            // No crossfade, check automix
+            if (automixEnabled && !hasAutomixedCurrentTrack && p.hasNextMediaItem() && (duration - currentPosition <= 3000L)) {
+                hasAutomixedCurrentTrack = true
+                p.seekToNextMediaItem()
+                return
+            }
+            p.volume = 1.0f
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "com.example.ACTION_RELOAD_EFFECTS") {
             reloadAudioEffects()
+            reloadPlaybackSettings()
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -122,6 +240,7 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacks(checkPlaybackRunnable)
         equalizer?.release()
         bassBoost?.release()
         equalizer = null

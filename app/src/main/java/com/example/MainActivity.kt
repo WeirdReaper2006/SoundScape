@@ -69,6 +69,11 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 
 // SoundScape M3 Dynamic Theme Integration - Maps legacy styling to dynamic MaterialTheme
 val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
@@ -294,6 +299,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = false,
         drawerContent = {
             SpotifySidebar(
                 viewModel = viewModel,
@@ -2949,6 +2955,109 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
     }
 }
 
+// ---------------- HIGH-PRECISION EQUALIZER VERTICAL SLIDER ----------------
+@Composable
+fun EqualizerVerticalSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedRange<Float>,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    var heightPx by remember { mutableStateOf(0f) }
+
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(48.dp) // wide grab area for better precision
+            .onGloballyPositioned { coordinates ->
+                heightPx = coordinates.size.height.toFloat()
+            }
+            .pointerInput(valueRange) {
+                detectTapGestures(
+                    onPress = { offset ->
+                        if (heightPx > 0) {
+                            val fraction = (1f - (offset.y / heightPx)).coerceIn(0f, 1f)
+                            val newValue = valueRange.start + fraction * (valueRange.endInclusive - valueRange.start)
+                            onValueChange(newValue)
+                        }
+                    }
+                )
+            }
+            .pointerInput(valueRange) {
+                detectDragGestures(
+                    onDrag = { change, _ ->
+                        change.consume()
+                        if (heightPx > 0) {
+                            val fraction = (1f - (change.position.y / heightPx)).coerceIn(0f, 1f)
+                            val newValue = valueRange.start + fraction * (valueRange.endInclusive - valueRange.start)
+                            onValueChange(newValue)
+                        }
+                    }
+                )
+            },
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        val rangeLen = valueRange.endInclusive - valueRange.start
+        val fraction = if (rangeLen == 0f) 0.5f else ((value - valueRange.start) / rangeLen).coerceIn(0f, 1f)
+
+        val thumbSize = 24.dp
+        val thumbSizePx = with(density) { thumbSize.toPx() }
+
+        // Track and thumb container
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(24.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            // Background track
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(SpotifyLightGray.copy(alpha = 0.3f))
+                    .align(Alignment.Center)
+            )
+
+            // Active track
+            if (heightPx > 0) {
+                val activeTrackHeight = with(density) {
+                    val maxTrackHeight = heightPx - thumbSizePx
+                    (fraction * maxTrackHeight).toDp() + (thumbSize / 2)
+                }
+                Box(
+                    modifier = Modifier
+                        .height(activeTrackHeight)
+                        .width(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(SpotifyGreen)
+                        .align(Alignment.BottomCenter)
+                )
+            }
+
+            // Thumb
+            if (heightPx > 0) {
+                val thumbOffset = with(density) {
+                    val maxOffsetPx = heightPx - thumbSizePx
+                    val offsetPx = fraction * maxOffsetPx
+                    -offsetPx.toDp()
+                }
+                Box(
+                    modifier = Modifier
+                        .offset(y = thumbOffset)
+                        .size(thumbSize)
+                        .clip(CircleShape)
+                        .background(SpotifyGreen)
+                        .border(2.dp, SpotifyDark, CircleShape)
+                        .align(Alignment.BottomCenter)
+                )
+            }
+        }
+    }
+}
+
 // ---------------- PROFILE & SETTINGS EDIT DIALOG ----------------
 @Composable
 fun ProfileSettingsScreen(
@@ -3084,7 +3193,7 @@ fun ProfileSettingsScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // --- 1. Account & Appearance Section ---
+                // --- 1. Account Section ---
                 val isAccountExpanded = expandedSection == "account"
                 Column(
                     modifier = Modifier
@@ -3119,13 +3228,13 @@ fun ProfileSettingsScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Account & Appearance",
+                                text = "Account",
                                 color = ThemeWhite,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Profile name • Accent presets • Light/Dark Mode",
+                                text = "Profile name • Theme presets • Folder scanning",
                                 color = SpotifyTextSecondary,
                                 fontSize = 12.sp
                             )
@@ -3367,71 +3476,12 @@ fun ProfileSettingsScreen(
                                     )
                                 )
                             }
-                        }
-                    }
-                }
 
-                // --- 2. Folder Scanning Section ---
-                val isFolderExpanded = expandedSection == "folder"
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(SpotifyMediumGray)
-                        .border(
-                            width = 1.dp,
-                            color = if (isFolderExpanded) SpotifyGreen.copy(alpha = 0.4f) else SpotifyLightGray.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .clickable { expandedSection = if (isFolderExpanded) null else "folder" }
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(4.dp, 36.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(if (isFolderExpanded) SpotifyGreen else SpotifyTextSecondary.copy(alpha = 0.5f))
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Icon(
-                            imageVector = Icons.Default.Folder,
-                            contentDescription = null,
-                            tint = if (isFolderExpanded) SpotifyGreen else ThemeWhite,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Folder Scanning",
-                                color = ThemeWhite,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Scan path presets • Reselect folder location",
-                                color = SpotifyTextSecondary,
-                                fontSize = 12.sp
-                            )
-                        }
-                        Icon(
-                            imageVector = if (isFolderExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            tint = SpotifyTextSecondary
-                        )
-                    }
+                            HorizontalDivider(color = SpotifyLightGray.copy(alpha = 0.2f))
 
-                    if (isFolderExpanded) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.clickable(enabled = false) {}
-                        ) {
+                            // Folder Scanning Portion
                             Text(
-                                text = "Reselect Scan Folder Location",
+                                text = "Folder Scanning & Location",
                                 color = ThemeWhite,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
@@ -3517,7 +3567,180 @@ fun ProfileSettingsScreen(
                     }
                 }
 
-                // --- 3. Equalizer & Audio Section ---
+                // --- 2. Playback Section ---
+                val isPlaybackExpanded = expandedSection == "playback"
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SpotifyMediumGray)
+                        .border(
+                            width = 1.dp,
+                            color = if (isPlaybackExpanded) SpotifyGreen.copy(alpha = 0.4f) else SpotifyLightGray.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable { expandedSection = if (isPlaybackExpanded) null else "playback" }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp, 36.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (isPlaybackExpanded) SpotifyGreen else SpotifyTextSecondary.copy(alpha = 0.5f))
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = null,
+                            tint = if (isPlaybackExpanded) SpotifyGreen else ThemeWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Playback",
+                                color = ThemeWhite,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Gapless • Automix • Crossfade • Mono audio",
+                                color = SpotifyTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isPlaybackExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = SpotifyTextSecondary
+                        )
+                    }
+
+                    if (isPlaybackExpanded) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.clickable(enabled = false) {}
+                        ) {
+                            // Header 1: Track transitions
+                            Text("Track transitions", color = ThemeWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+
+                            // Gapless playback Switch
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Gapless playback", color = ThemeWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Removes any gaps or pauses that may occur in between tracks.", color = SpotifyTextSecondary, fontSize = 10.sp)
+                                }
+                                Switch(
+                                    checked = viewModel.gaplessPlaybackEnabled,
+                                    onCheckedChange = { viewModel.toggleGaplessPlayback() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = SpotifyBlack,
+                                        checkedTrackColor = SpotifyGreen,
+                                        uncheckedThumbColor = ThemeWhite,
+                                        uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
+                                    )
+                                )
+                            }
+
+                            // Automix Switch
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Automix", color = ThemeWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Allows seamless transitions between songs on certain playlists.", color = SpotifyTextSecondary, fontSize = 10.sp)
+                                }
+                                Switch(
+                                    checked = viewModel.automixEnabled,
+                                    onCheckedChange = { viewModel.toggleAutomix() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = SpotifyBlack,
+                                        checkedTrackColor = SpotifyGreen,
+                                        uncheckedThumbColor = ThemeWhite,
+                                        uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
+                                    )
+                                )
+                            }
+
+                            // Crossfade Slider
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Crossfade", color = ThemeWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = if (viewModel.crossfadeDurationSec == 0) "Off" else "${viewModel.crossfadeDurationSec} s",
+                                        color = SpotifyGreen,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text("Adjust the length of fading and overlap in between tracks.", color = SpotifyTextSecondary, fontSize = 10.sp)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("0 s", color = SpotifyTextSecondary, fontSize = 11.sp)
+                                    Slider(
+                                        value = viewModel.crossfadeDurationSec.toFloat(),
+                                        onValueChange = { viewModel.updateCrossfadeDuration(it.toInt()) },
+                                        valueRange = 0f..12f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = SpotifyGreen,
+                                            activeTrackColor = SpotifyGreen,
+                                            inactiveTrackColor = SpotifyBlack
+                                        ),
+                                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                                    )
+                                    Text("12 s", color = SpotifyTextSecondary, fontSize = 11.sp)
+                                }
+                            }
+
+                            HorizontalDivider(color = SpotifyLightGray.copy(alpha = 0.2f))
+
+                            // Header 2: Listening controls
+                            Text("Listening controls", color = ThemeWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+
+                            // Mono audio Switch
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Mono audio", color = ThemeWhite, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Left and right speakers play the same audio.", color = SpotifyTextSecondary, fontSize = 10.sp)
+                                }
+                                Switch(
+                                    checked = viewModel.monoAudioEnabled,
+                                    onCheckedChange = { viewModel.toggleMonoAudio() },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = SpotifyBlack,
+                                        checkedTrackColor = SpotifyGreen,
+                                        uncheckedThumbColor = ThemeWhite,
+                                        uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // --- 3. Equalizer Section ---
                 val isEqExpanded = expandedSection == "equalizer"
                 Column(
                     modifier = Modifier
@@ -3552,13 +3775,13 @@ fun ProfileSettingsScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Equalizer & Audio",
+                                text = "Equalizer",
                                 color = ThemeWhite,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Equalizer bands • Audio presets • Bass boost strength",
+                                text = "Adjust frequencies • Bass boost",
                                 color = SpotifyTextSecondary,
                                 fontSize = 12.sp
                             )
@@ -3609,7 +3832,7 @@ fun ProfileSettingsScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = SpotifyBlack),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text("Select Preset", color = ThemeWhite)
+                                        Text("Preset: ${viewModel.eqActivePreset}", color = ThemeWhite)
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = ThemeWhite)
                                     }
@@ -3636,7 +3859,7 @@ fun ProfileSettingsScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(150.dp),
+                                        .height(180.dp), // custom vertical slider height
                                     horizontalArrangement = Arrangement.SpaceEvenly
                                 ) {
                                     val frequencies = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
@@ -3647,22 +3870,14 @@ fun ProfileSettingsScreen(
                                         ) {
                                             val bandLevel = viewModel.eqBands.getOrElse(index) { 0 }
                                             Text("${bandLevel / 100}dB", color = ThemeWhite, fontSize = 11.sp)
-                                            Slider(
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            EqualizerVerticalSlider(
                                                 value = bandLevel.toFloat(),
                                                 onValueChange = { value ->
-                                                    viewModel.updateEqualizerBand(index, value.toInt())
+                                                    viewModel.updateEqualizerBand(index, value.toInt(), isManual = true)
                                                 },
                                                 valueRange = -1500f..1500f,
-                                                colors = SliderDefaults.colors(
-                                                    thumbColor = SpotifyGreen,
-                                                    activeTrackColor = SpotifyGreen,
-                                                    inactiveTrackColor = SpotifyBlack
-                                                ),
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .graphicsLayer {
-                                                        rotationZ = -90f
-                                                    }
+                                                modifier = Modifier.weight(1f)
                                             )
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Text(freq, color = SpotifyTextSecondary, fontSize = 10.sp)
@@ -3720,6 +3935,164 @@ fun ProfileSettingsScreen(
                         }
                     }
                 }
+
+                // --- 4. About & Support Section ---
+                val isAboutExpanded = expandedSection == "about"
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SpotifyMediumGray)
+                        .border(
+                            width = 1.dp,
+                            color = if (isAboutExpanded) SpotifyGreen.copy(alpha = 0.4f) else SpotifyLightGray.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable { expandedSection = if (isAboutExpanded) null else "about" }
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp, 36.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (isAboutExpanded) SpotifyGreen else SpotifyTextSecondary.copy(alpha = 0.5f))
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = if (isAboutExpanded) SpotifyGreen else ThemeWhite,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "About and support",
+                                color = ThemeWhite,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Version • Licenses • Terms of Use • Support",
+                                color = SpotifyTextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isAboutExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = null,
+                            tint = SpotifyTextSecondary
+                        )
+                    }
+
+                    if (isAboutExpanded) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.clickable(enabled = false) {}
+                        ) {
+                            // Version Item
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Version", color = ThemeWhite, fontSize = 14.sp)
+                                Text("SoundScape v1.4", color = SpotifyTextSecondary, fontSize = 14.sp)
+                            }
+                            
+                            // Player Release
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Player Release", color = ThemeWhite, fontSize = 14.sp)
+                                Text("2", color = SpotifyTextSecondary, fontSize = 14.sp)
+                            }
+
+                            HorizontalDivider(color = SpotifyLightGray.copy(alpha = 0.2f))
+
+                            // Privacy Policy
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        Toast.makeText(context, "Opening Privacy Policy...", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Privacy Policy", color = ThemeWhite, fontSize = 14.sp)
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(16.dp))
+                            }
+
+                            // Third-party licences
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        Toast.makeText(context, "SoundScape uses ExoPlayer, Room, and Coil under open source licenses.", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Third-party licences", color = ThemeWhite, fontSize = 14.sp)
+                            }
+
+                            // Terms of Use
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        Toast.makeText(context, "Opening Terms of Use...", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Terms of Use", color = ThemeWhite, fontSize = 14.sp)
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(16.dp))
+                            }
+
+                            // Platform Rules
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        Toast.makeText(context, "Opening Platform Rules...", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Platform Rules", color = ThemeWhite, fontSize = 14.sp)
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(16.dp))
+                            }
+
+                            // Support
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        Toast.makeText(context, "Contacting support at support@soundscape.com...", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Support", color = ThemeWhite, fontSize = 14.sp)
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -3758,7 +4131,7 @@ fun ProfileSettingsScreen(
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Text(
-                        text = "Save & Rescan",
+                        text = "Save",
                         color = Color.Black,
                         fontWeight = FontWeight.Bold
                     )
@@ -3849,29 +4222,18 @@ fun SpotifySidebar(
         }
 
         // Divider
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(SpotifyLightGray.copy(alpha = 0.3f))
-        )
+        HorizontalDivider(color = SpotifyLightGray.copy(alpha = 0.3f))
 
         // Navigation list
         Column(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             val navItems = listOf(
-                Triple("Add account", Icons.Default.PersonAdd, {
-                    Toast.makeText(context, "Multiple accounts feature coming soon!", Toast.LENGTH_SHORT).show()
-                }),
                 Triple("Listening stats", Icons.Default.BarChart, {
                     Toast.makeText(context, "Stats are compiled after 24 hours of listening!", Toast.LENGTH_SHORT).show()
                 }),
                 Triple("Recents", Icons.Default.History, {
                     onNavigateToRecents()
-                }),
-                Triple("Your Updates", Icons.Default.Notifications, {
-                    Toast.makeText(context, "You are up to date! SoundScape v1.4", Toast.LENGTH_SHORT).show()
                 }),
                 Triple("Settings and privacy", Icons.Default.Settings, {
                     onNavigateToSettings()
@@ -3900,163 +4262,6 @@ fun SpotifySidebar(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                }
-            }
-        }
-
-        // Divider
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(SpotifyLightGray.copy(alpha = 0.3f))
-        )
-
-        // Activity Row Section
-        Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = "FRIEND ACTIVITY",
-                color = SpotifyTextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Online friend avatar
-                Box(
-                    modifier = Modifier.size(46.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                            .background(SpotifyMediumGray),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "A",
-                            color = ThemeWhite,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    }
-                    // Status Badge (Green dot)
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF1DB954))
-                            .border(1.5.dp, SpotifyDark, CircleShape)
-                            .align(Alignment.BottomEnd)
-                    )
-                }
-
-                // Invite Friends action button (Circle with plus icon)
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .border(1.5.dp, SpotifyLightGray.copy(alpha = 0.5f), CircleShape)
-                        .clickable {
-                            Toast.makeText(context, "Invite link copied to clipboard!", Toast.LENGTH_SHORT).show()
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Invite Friends",
-                        tint = SpotifyGreen,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Text(
-                    text = "Invite friends to share activity",
-                    color = SpotifyTextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-
-        // Divider
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(SpotifyLightGray.copy(alpha = 0.3f))
-        )
-
-        // Messages Box Section
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(SpotifyMediumGray)
-                .padding(16.dp)
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Inbox Messages",
-                        color = ThemeWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Mail,
-                        contentDescription = "Inbox",
-                        tint = SpotifyGreen,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                Text(
-                    text = "Connect with your friends to exchange songs, playlists, and discover what others are currently jamming to!",
-                    color = SpotifyTextSecondary,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp
-                )
-
-                Button(
-                    onClick = {
-                        Toast.makeText(context, "Select a friend to message!", Toast.LENGTH_SHORT).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-                    shape = RoundedCornerShape(20.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "New Message",
-                            tint = Color.Black,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "New message",
-                            color = Color.Black,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                 }
             }
         }
@@ -4364,7 +4569,7 @@ fun EqualizerDialog(
                             colors = ButtonDefaults.buttonColors(containerColor = SpotifyMediumGray),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Select Preset", color = ThemeWhite)
+                            Text("Preset: ${viewModel.eqActivePreset}", color = ThemeWhite)
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = ThemeWhite)
                         }
@@ -4393,7 +4598,7 @@ fun EqualizerDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(150.dp),
+                            .height(180.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         val frequencies = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
@@ -4404,22 +4609,14 @@ fun EqualizerDialog(
                             ) {
                                 val bandLevel = viewModel.eqBands.getOrElse(index) { 0 }
                                 Text("${bandLevel / 100}dB", color = ThemeWhite, fontSize = 11.sp)
-                                Slider(
+                                Spacer(modifier = Modifier.height(4.dp))
+                                EqualizerVerticalSlider(
                                     value = bandLevel.toFloat(),
                                     onValueChange = { value ->
-                                        viewModel.updateEqualizerBand(index, value.toInt())
+                                        viewModel.updateEqualizerBand(index, value.toInt(), isManual = true)
                                     },
                                     valueRange = -1500f..1500f,
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = SpotifyGreen,
-                                        activeTrackColor = SpotifyGreen,
-                                        inactiveTrackColor = SpotifyMediumGray
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .graphicsLayer {
-                                            rotationZ = -90f
-                                        }
+                                    modifier = Modifier.weight(1f)
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(freq, color = SpotifyTextSecondary, fontSize = 10.sp)

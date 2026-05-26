@@ -166,6 +166,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     val eqBands = mutableStateListOf(0, 0, 0, 0, 0)
 
+    var eqActivePreset by mutableStateOf("Flat")
+        private set
+
+    // Playback settings states
+    var gaplessPlaybackEnabled by mutableStateOf(true)
+        private set
+
+    var automixEnabled by mutableStateOf(true)
+        private set
+
+    var crossfadeDurationSec by mutableStateOf(0)
+        private set
+
+    var monoAudioEnabled by mutableStateOf(false)
+        private set
 
     // Song Metadata Overrides
     var songOverrides by mutableStateOf<Map<String, com.example.data.db.SongOverrideEntity>>(emptyMap())
@@ -200,6 +215,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadProfile()
         initEqualizerSettings()
+        initPlaybackSettings()
         initMediaController()
         
         // Listen to metadata overrides flow in real-time
@@ -855,6 +871,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         eqEnabled = prefs.getBoolean("eq_enabled", false)
         bbEnabled = prefs.getBoolean("bb_enabled", false)
         bbStrength = prefs.getInt("bb_strength", 0)
+        eqActivePreset = prefs.getString("eq_active_preset", "Flat") ?: "Flat"
         for (i in 0 until 5) {
             val level = prefs.getInt("eq_band_$i", 0)
             if (i < eqBands.size) {
@@ -879,10 +896,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         notifyServiceReloadEffects()
     }
 
-    fun updateEqualizerBand(bandIndex: Int, level: Int) {
+    fun updateEqualizerBand(bandIndex: Int, level: Int, isManual: Boolean = false) {
         if (bandIndex in eqBands.indices) {
             eqBands[bandIndex] = level
             val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+            if (isManual) {
+                eqActivePreset = "Custom"
+                prefs.edit().putString("eq_active_preset", "Custom").apply()
+            }
             prefs.edit().putInt("eq_band_$bandIndex", level).apply()
             notifyServiceReloadEffects()
         }
@@ -904,9 +925,49 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             "classical" -> listOf(300, 200, 0, 200, 300)
             else -> listOf(0, 0, 0, 0, 0) // Flat
         }
+        eqActivePreset = presetName
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("eq_active_preset", presetName).apply()
         for (i in 0 until 5) {
-            updateEqualizerBand(i, presetBands[i])
+            updateEqualizerBand(i, presetBands[i], isManual = false)
         }
+    }
+
+    // ---------------- PLAYBACK SETTINGS ----------------
+    fun initPlaybackSettings() {
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        gaplessPlaybackEnabled = prefs.getBoolean("gapless_playback", true)
+        automixEnabled = prefs.getBoolean("automix", true)
+        crossfadeDurationSec = prefs.getInt("crossfade_duration", 0)
+        monoAudioEnabled = prefs.getBoolean("mono_audio", false)
+    }
+
+    fun toggleGaplessPlayback() {
+        gaplessPlaybackEnabled = !gaplessPlaybackEnabled
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("gapless_playback", gaplessPlaybackEnabled).apply()
+        notifyServiceReloadEffects()
+    }
+
+    fun toggleAutomix() {
+        automixEnabled = !automixEnabled
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("automix", automixEnabled).apply()
+        notifyServiceReloadEffects()
+    }
+
+    fun updateCrossfadeDuration(seconds: Int) {
+        crossfadeDurationSec = seconds
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putInt("crossfade_duration", seconds).apply()
+        notifyServiceReloadEffects()
+    }
+
+    fun toggleMonoAudio() {
+        monoAudioEnabled = !monoAudioEnabled
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("mono_audio", monoAudioEnabled).apply()
+        notifyServiceReloadEffects()
     }
 
     private fun notifyServiceReloadEffects() {
