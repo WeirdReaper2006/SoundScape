@@ -30,6 +30,7 @@ class MonoAudioProcessor : BaseAudioProcessor() {
             // If mono is disabled, or channels are not stereo, or it is not 16-bit PCM,
             // copy the input buffer directly to the output buffer without modification.
             outputBuffer.put(inputBuffer)
+            outputBuffer.flip()
             return
         }
 
@@ -49,5 +50,6 @@ class MonoAudioProcessor : BaseAudioProcessor() {
             outputBuffer.putShort(average) // Write averaged value to Left channel
             outputBuffer.putShort(average) // Write averaged value to Right channel
         }
+        outputBuffer.flip()
     }
 }
