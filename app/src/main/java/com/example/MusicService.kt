@@ -125,6 +125,18 @@ class MusicService : MediaSessionService() {
             equalizer = android.media.audiofx.Equalizer(0, audioSessionId).apply {
                 enabled = true
             }
+            
+            // Save hardware bands info for UI
+            equalizer?.let { eq ->
+                val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+                val bandsCount = eq.numberOfBands.toInt()
+                prefs.edit().putInt("eq_hardware_bands_count", bandsCount).apply()
+                for (i in 0 until bandsCount) {
+                    val freqHz = eq.getCenterFreq(i.toShort()) / 1000
+                    prefs.edit().putInt("eq_hardware_band_freq_$i", freqHz).apply()
+                }
+            }
+
             bassBoost = android.media.audiofx.BassBoost(0, audioSessionId).apply {
                 enabled = true
             }

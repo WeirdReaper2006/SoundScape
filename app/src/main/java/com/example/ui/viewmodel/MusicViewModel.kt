@@ -164,7 +164,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     var showEqualizerDialogGlobally by mutableStateOf(false)
 
-    val eqBands = mutableStateListOf(0, 0, 0, 0, 0)
+    val eqBands = mutableStateListOf<Int>()
 
     var eqActivePreset by mutableStateOf("Flat")
         private set
@@ -865,20 +865,34 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         progressTrackingJob = null
     }
 
-    // ---------------- PREMIUM 5-BAND EQUALIZER & BASS BOOST ----------------
+    // ---------------- PREMIUM EQUALIZER & BASS BOOST ----------------
     fun initEqualizerSettings() {
         val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
         eqEnabled = prefs.getBoolean("eq_enabled", false)
         bbEnabled = prefs.getBoolean("bb_enabled", false)
         bbStrength = prefs.getInt("bb_strength", 0)
-        eqActivePreset = prefs.getString("eq_active_preset", "Flat") ?: "Flat"
-        for (i in 0 until 5) {
+        eqActivePreset = prefs.getString("eq_active_preset", "Balanced") ?: "Balanced"
+        val bandsCount = prefs.getInt("eq_hardware_bands_count", 5)
+        eqBands.clear()
+        for (i in 0 until bandsCount) {
             val level = prefs.getInt("eq_band_$i", 0)
-            if (i < eqBands.size) {
-                eqBands[i] = level
+            eqBands.add(level)
+        }
+    }
+
+    fun getBandFrequencyLabel(index: Int): String {
+        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val defaultFreqs = listOf(60, 230, 910, 3600, 14000)
+        val freqHz = prefs.getInt("eq_hardware_band_freq_$index", defaultFreqs.getOrElse(index) { 1000 })
+        return if (freqHz >= 1000) {
+            if (freqHz % 1000 == 0) {
+                "${freqHz / 1000}k"
             } else {
-                eqBands.add(level)
+                val divided = freqHz / 1000f
+                if (divided == 3.6f) "3.6k" else "${divided}k"
             }
+        } else {
+            "$freqHz"
         }
     }
 
@@ -917,19 +931,45 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun applyEqualizerPreset(presetName: String) {
-        val presetBands = when (presetName.lowercase()) {
-            "bass booster" -> listOf(600, 400, 0, 0, 0)
-            "electronic" -> listOf(400, 200, 0, 300, 400)
-            "pop" -> listOf(-200, 0, 300, 100, -200)
-            "rock" -> listOf(500, 300, -100, 200, 400)
-            "classical" -> listOf(300, 200, 0, 200, 300)
-            else -> listOf(0, 0, 0, 0, 0) // Flat
+        val standard5Bands = when (presetName.lowercase()) {
+            "balanced" -> listOf(0, 0, 0, 0, 0)
+            "bass boost" -> listOf(800, 600, 300, 0, 0)
+            "smooth" -> listOf(-200, 100, 300, 200, -100)
+            "dynamic" -> listOf(600, 200, -200, 200, 600)
+            "clear" -> listOf(-200, 0, 400, 300, 100)
+            "treble boost" -> listOf(0, 0, 200, 600, 800)
+            else -> listOf(0, 0, 0, 0, 0) // Flat / Custom default
         }
         eqActivePreset = presetName
         val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("eq_active_preset", presetName).apply()
-        for (i in 0 until 5) {
-            updateEqualizerBand(i, presetBands[i], isManual = false)
+
+        // Dynamic Bass Boost integration for Bass boost preset
+        if (presetName.lowercase() == "bass boost") {
+            bbEnabled = true
+            bbStrength = 800
+            prefs.edit().putBoolean("bb_enabled", true).putInt("bb_strength", 800).apply()
+        } else {
+            bbEnabled = false
+            bbStrength = 0
+            prefs.edit().putBoolean("bb_enabled", false).putInt("bb_strength", 0).apply()
+        }
+
+        val bandsCount = eqBands.size
+        for (i in 0 until bandsCount) {
+            val value = if (bandsCount == 5) {
+                standard5Bands[i]
+            } else {
+                val fraction = i.toFloat() / (bandsCount - 1).coerceAtLeast(1)
+                val sourceIndexFloat = fraction * 4
+                val lowerIndex = sourceIndexFloat.toInt().coerceIn(0, 4)
+                val upperIndex = (lowerIndex + 1).coerceIn(0, 4)
+                val diff = sourceIndexFloat - lowerIndex
+                val lowerVal = standard5Bands[lowerIndex]
+                val upperVal = standard5Bands[upperIndex]
+                (lowerVal + diff * (upperVal - lowerVal)).toInt()
+            }
+            updateEqualizerBand(i, value, isManual = false)
         }
     }
 

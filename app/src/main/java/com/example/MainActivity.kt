@@ -2961,10 +2961,14 @@ fun EqualizerVerticalSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedRange<Float>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEnabled: Boolean = true
 ) {
     val density = LocalDensity.current
     var heightPx by remember { mutableStateOf(0f) }
+
+    val activeColor = if (isEnabled) MaterialTheme.colorScheme.primary else Color(0xFF48484A)
+    val trackBgColor = Color(0xFF2C2C2E)
 
     Box(
         modifier = modifier
@@ -2973,35 +2977,39 @@ fun EqualizerVerticalSlider(
             .onGloballyPositioned { coordinates ->
                 heightPx = coordinates.size.height.toFloat()
             }
-            .pointerInput(valueRange) {
-                detectTapGestures(
-                    onPress = { offset ->
-                        if (heightPx > 0) {
-                            val fraction = (1f - (offset.y / heightPx)).coerceIn(0f, 1f)
-                            val newValue = valueRange.start + fraction * (valueRange.endInclusive - valueRange.start)
-                            onValueChange(newValue)
+            .pointerInput(valueRange, isEnabled) {
+                if (isEnabled) {
+                    detectTapGestures(
+                        onPress = { offset ->
+                            if (heightPx > 0) {
+                                val fraction = (1f - (offset.y / heightPx)).coerceIn(0f, 1f)
+                                val newValue = valueRange.start + fraction * (valueRange.endInclusive - valueRange.start)
+                                onValueChange(newValue)
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
-            .pointerInput(valueRange) {
-                detectDragGestures(
-                    onDrag = { change, _ ->
-                        change.consume()
-                        if (heightPx > 0) {
-                            val fraction = (1f - (change.position.y / heightPx)).coerceIn(0f, 1f)
-                            val newValue = valueRange.start + fraction * (valueRange.endInclusive - valueRange.start)
-                            onValueChange(newValue)
+            .pointerInput(valueRange, isEnabled) {
+                if (isEnabled) {
+                    detectDragGestures(
+                        onDrag = { change, _ ->
+                            change.consume()
+                            if (heightPx > 0) {
+                                val fraction = (1f - (change.position.y / heightPx)).coerceIn(0f, 1f)
+                                val newValue = valueRange.start + fraction * (valueRange.endInclusive - valueRange.start)
+                                onValueChange(newValue)
+                            }
                         }
-                    }
-                )
+                    )
+                }
             },
         contentAlignment = Alignment.BottomCenter
     ) {
         val rangeLen = valueRange.endInclusive - valueRange.start
         val fraction = if (rangeLen == 0f) 0.5f else ((value - valueRange.start) / rangeLen).coerceIn(0f, 1f)
 
-        val thumbSize = 24.dp
+        val thumbSize = 16.dp
         val thumbSizePx = with(density) { thumbSize.toPx() }
 
         // Track and thumb container
@@ -3015,9 +3023,9 @@ fun EqualizerVerticalSlider(
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(SpotifyLightGray.copy(alpha = 0.3f))
+                    .width(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(trackBgColor)
                     .align(Alignment.Center)
             )
 
@@ -3030,9 +3038,9 @@ fun EqualizerVerticalSlider(
                 Box(
                     modifier = Modifier
                         .height(activeTrackHeight)
-                        .width(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(SpotifyGreen)
+                        .width(3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                        .background(activeColor)
                         .align(Alignment.BottomCenter)
                 )
             }
@@ -3049,8 +3057,8 @@ fun EqualizerVerticalSlider(
                         .offset(y = thumbOffset)
                         .size(thumbSize)
                         .clip(CircleShape)
-                        .background(SpotifyGreen)
-                        .border(2.dp, SpotifyDark, CircleShape)
+                        .background(Color(0xFF1C1C1E))
+                        .border(2.5.dp, activeColor, CircleShape)
                         .align(Alignment.BottomCenter)
                 )
             }
@@ -3279,7 +3287,7 @@ fun ProfileSettingsScreen(
                 val subPageTitle = when (activeSubPage) {
                     "account" -> "Account"
                     "playback" -> "Playback"
-                    "equalizer" -> "Equalizer"
+                    "equalizer" -> "Equaliser"
                     "about" -> "About and support"
                     else -> ""
                 }
@@ -3743,16 +3751,14 @@ fun ProfileSettingsScreen(
                         }
 
                         "equalizer" -> {
-                            var showPresetMenu by remember { mutableStateOf(false) }
-
-                            // Equalizer Switch Row
+                            // Equalizer Switch Row (State)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.GraphicEq, contentDescription = null, tint = SpotifyGreen)
+                                    Icon(Icons.Default.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Equalizer State", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
                                 }
@@ -3761,121 +3767,155 @@ fun ProfileSettingsScreen(
                                     onCheckedChange = { viewModel.toggleEqualizer() },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = SpotifyBlack,
-                                        checkedTrackColor = SpotifyGreen,
+                                        checkedTrackColor = MaterialTheme.colorScheme.primary,
                                         uncheckedThumbColor = ThemeWhite,
                                         uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
                                     )
                                 )
                             }
 
-                            // Preset Dropdown (enabled only if EQ is enabled)
-                            if (viewModel.eqEnabled) {
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    Button(
-                                        onClick = { showPresetMenu = true },
-                                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyBlack),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text("Preset: ${viewModel.eqActivePreset}", color = ThemeWhite)
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = ThemeWhite)
-                                    }
-                                    DropdownMenu(
-                                        expanded = showPresetMenu,
-                                        onDismissRequest = { showPresetMenu = false },
-                                        modifier = Modifier.background(SpotifyMediumGray)
-                                    ) {
-                                        val presets = listOf("Flat", "Bass Booster", "Electronic", "Pop", "Rock", "Classical")
-                                        presets.forEach { preset ->
-                                            DropdownMenuItem(
-                                                text = { Text(preset, color = ThemeWhite) },
-                                                onClick = {
-                                                    viewModel.applyEqualizerPreset(preset)
-                                                    showPresetMenu = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                                // 5 vertical sliders
-                                Text("Frequency Bands", color = SpotifyTextSecondary, fontSize = 12.sp)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(180.dp),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    val frequencies = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
-                                    frequencies.forEachIndexed { index, freq ->
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            val bandLevel = viewModel.eqBands.getOrElse(index) { 0 }
-                                            Text("${bandLevel / 100}dB", color = ThemeWhite, fontSize = 11.sp)
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            EqualizerVerticalSlider(
-                                                value = bandLevel.toFloat(),
-                                                onValueChange = { value ->
-                                                    viewModel.updateEqualizerBand(index, value.toInt(), isManual = true)
-                                                },
-                                                valueRange = -1500f..1500f,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            Spacer(modifier = Modifier.height(4.dp))
-                                            Text(freq, color = SpotifyTextSecondary, fontSize = 10.sp)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Bass Boost Row
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            // Main Sliders Card (matches Equalizer.jpeg card styling)
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(260.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+                                shape = RoundedCornerShape(20.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Tune, contentDescription = null, tint = SpotifyGreen)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Bass Boost State", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(vertical = 16.dp, horizontal = 12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        horizontalArrangement = Arrangement.SpaceEvenly
+                                    ) {
+                                        val bandsCount = viewModel.eqBands.size
+                                        for (index in 0 until bandsCount) {
+                                            val bandLevel = viewModel.eqBands.getOrElse(index) { 0 }
+                                            val freqLabel = viewModel.getBandFrequencyLabel(index)
+                                            
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                // dB label at the top
+                                                val dbVal = bandLevel / 100
+                                                Text(
+                                                    text = if (dbVal > 0) "+$dbVal" else "$dbVal",
+                                                    color = if (viewModel.eqEnabled) ThemeWhite else SpotifyTextSecondary,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                // Slider
+                                                EqualizerVerticalSlider(
+                                                    value = bandLevel.toFloat(),
+                                                    onValueChange = { value ->
+                                                        viewModel.updateEqualizerBand(index, value.toInt(), isManual = true)
+                                                    },
+                                                    valueRange = -1500f..1500f,
+                                                    modifier = Modifier.weight(1f),
+                                                    isEnabled = viewModel.eqEnabled
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                // Frequency label at the bottom
+                                                Text(
+                                                    text = freqLabel,
+                                                    color = SpotifyTextSecondary,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
-                                Switch(
-                                    checked = viewModel.bbEnabled,
-                                    onCheckedChange = { viewModel.toggleBassBoost() },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = SpotifyBlack,
-                                        checkedTrackColor = SpotifyGreen,
-                                        uncheckedThumbColor = ThemeWhite,
-                                        uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
-                                    )
-                                )
                             }
 
-                            if (viewModel.bbEnabled) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Strength", color = ThemeWhite, fontSize = 13.sp, modifier = Modifier.width(70.dp))
-                                    Slider(
-                                        value = viewModel.bbStrength.toFloat(),
-                                        onValueChange = { value ->
-                                            viewModel.updateBassBoostStrength(value.toInt())
-                                        },
-                                        valueRange = 0f..1000f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = SpotifyGreen,
-                                            activeTrackColor = SpotifyGreen,
-                                            inactiveTrackColor = SpotifyBlack
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("${viewModel.bbStrength / 10}%", color = ThemeWhite, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // 2-Column Preset Grid
+                            val presetsList = listOf(
+                                "Balanced" to "Balanced",
+                                "Bass boost" to "Bass boost",
+                                "Smooth" to "Smooth",
+                                "Dynamic" to "Dynamic",
+                                "Clear" to "Clear",
+                                "Treble boost" to "Treble boost",
+                                "Custom" to "Custom"
+                            )
+
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Chunk into rows of 2
+                                presetsList.chunked(2).forEach { rowPresets ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        rowPresets.forEach { (label, presetKey) ->
+                                            val isSelected = viewModel.eqActivePreset.equals(presetKey, ignoreCase = true)
+                                            Button(
+                                                onClick = {
+                                                    viewModel.applyEqualizerPreset(presetKey)
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2C2C2E),
+                                                    contentColor = if (isSelected) Color.Black else ThemeWhite
+                                                ),
+                                                shape = RoundedCornerShape(24.dp),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(48.dp),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text(
+                                                    text = label,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                        // If odd number, add spacer placeholder
+                                        if (rowPresets.size < 2) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Preset Description Text at the bottom
+                            val presetDesc = when (viewModel.eqActivePreset.lowercase()) {
+                                "balanced" -> "A natural sound with well-balanced frequencies."
+                                "bass boost" -> "Enhance lower frequencies for deeper, punchier bass."
+                                "smooth" -> "A smooth, warm sound signature that is comfortable to listen to."
+                                "dynamic" -> "Vibrant, high-energy profile with rich bass and bright treble."
+                                "clear" -> "Crisp vocals and clear midrange for enhanced dialogue and acoustics."
+                                "treble boost" -> "Crisp, sparkling highs for enhanced detail and clarity in treble."
+                                "custom" -> "Manually adjust the equalizer bands to suit your personal preference."
+                                else -> "Adjust the frequency bands to customize your sound signature."
+                            }
+
+                            Text(
+                                text = presetDesc,
+                                color = SpotifyTextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Normal,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                         }
 
                         "about" -> {
@@ -4395,8 +4435,6 @@ fun EqualizerDialog(
     viewModel: MusicViewModel,
     onDismiss: () -> Unit
 ) {
-    var showPresetMenu by remember { mutableStateOf(false) }
-
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -4418,7 +4456,7 @@ fun EqualizerDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Audio Equalizer & Bass",
+                        text = "Audio Equaliser",
                         color = ThemeWhite,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -4427,16 +4465,17 @@ fun EqualizerDialog(
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = ThemeWhite)
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Equalizer Switch Row
+                // Equalizer State Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = SpotifyGreen)
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Equalizer State", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
                     }
@@ -4444,127 +4483,151 @@ fun EqualizerDialog(
                         checked = viewModel.eqEnabled,
                         onCheckedChange = { viewModel.toggleEqualizer() },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = SpotifyDark,
-                            checkedTrackColor = SpotifyGreen,
-                            uncheckedThumbColor = SpotifyTextSecondary,
-                            uncheckedTrackColor = SpotifyMediumGray
+                            checkedThumbColor = SpotifyBlack,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = ThemeWhite,
+                            uncheckedTrackColor = ThemeWhite.copy(alpha = 0.2f)
                         )
                     )
                 }
+
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Preset Dropdown (enabled only if EQ is enabled)
-                if (viewModel.eqEnabled) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Button(
-                            onClick = { showPresetMenu = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = SpotifyMediumGray),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Preset: ${viewModel.eqActivePreset}", color = ThemeWhite)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = ThemeWhite)
-                        }
-                        DropdownMenu(
-                            expanded = showPresetMenu,
-                            onDismissRequest = { showPresetMenu = false },
-                            modifier = Modifier.background(SpotifyDark)
-                        ) {
-                            val presets = listOf("Flat", "Bass Booster", "Electronic", "Pop", "Rock", "Classical")
-                            presets.forEach { preset ->
-                                DropdownMenuItem(
-                                    text = { Text(preset, color = ThemeWhite) },
-                                    onClick = {
-                                        viewModel.applyEqualizerPreset(preset)
-                                        showPresetMenu = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 5 vertical sliders
-                    Text("Frequency Bands", color = SpotifyTextSecondary, fontSize = 12.sp, modifier = Modifier.align(Alignment.Start))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        val frequencies = listOf("60Hz", "230Hz", "910Hz", "3.6kHz", "14kHz")
-                        frequencies.forEachIndexed { index, freq ->
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                val bandLevel = viewModel.eqBands.getOrElse(index) { 0 }
-                                Text("${bandLevel / 100}dB", color = ThemeWhite, fontSize = 11.sp)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                EqualizerVerticalSlider(
-                                    value = bandLevel.toFloat(),
-                                    onValueChange = { value ->
-                                        viewModel.updateEqualizerBand(index, value.toInt(), isManual = true)
-                                    },
-                                    valueRange = -1500f..1500f,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(freq, color = SpotifyTextSecondary, fontSize = 10.sp)
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
-
-                // Bass Boost Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Main Sliders Card (matches Equalizer.jpeg card styling)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(230.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Tune, contentDescription = null, tint = SpotifyGreen)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Bass Boost State", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            val bandsCount = viewModel.eqBands.size
+                            for (index in 0 until bandsCount) {
+                                val bandLevel = viewModel.eqBands.getOrElse(index) { 0 }
+                                val freqLabel = viewModel.getBandFrequencyLabel(index)
+                                
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    val dbVal = bandLevel / 100
+                                    Text(
+                                        text = if (dbVal > 0) "+$dbVal" else "$dbVal",
+                                        color = if (viewModel.eqEnabled) ThemeWhite else SpotifyTextSecondary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    EqualizerVerticalSlider(
+                                        value = bandLevel.toFloat(),
+                                        onValueChange = { value ->
+                                            viewModel.updateEqualizerBand(index, value.toInt(), isManual = true)
+                                        },
+                                        valueRange = -1500f..1500f,
+                                        modifier = Modifier.weight(1f),
+                                        isEnabled = viewModel.eqEnabled
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = freqLabel,
+                                        color = SpotifyTextSecondary,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
-                    Switch(
-                        checked = viewModel.bbEnabled,
-                        onCheckedChange = { viewModel.toggleBassBoost() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = SpotifyDark,
-                            checkedTrackColor = SpotifyGreen,
-                            uncheckedThumbColor = SpotifyTextSecondary,
-                            uncheckedTrackColor = SpotifyMediumGray
-                        )
-                    )
                 }
 
-                if (viewModel.bbEnabled) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Strength", color = ThemeWhite, fontSize = 13.sp, modifier = Modifier.width(70.dp))
-                        Slider(
-                            value = viewModel.bbStrength.toFloat(),
-                            onValueChange = { value ->
-                                viewModel.updateBassBoostStrength(value.toInt())
-                            },
-                            valueRange = 0f..1000f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = SpotifyGreen,
-                                activeTrackColor = SpotifyGreen,
-                                inactiveTrackColor = SpotifyMediumGray
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("${viewModel.bbStrength / 10}%", color = ThemeWhite, fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 2-Column Preset Grid
+                val presetsList = listOf(
+                    "Balanced" to "Balanced",
+                    "Bass boost" to "Bass boost",
+                    "Smooth" to "Smooth",
+                    "Dynamic" to "Dynamic",
+                    "Clear" to "Clear",
+                    "Treble boost" to "Treble boost",
+                    "Custom" to "Custom"
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    presetsList.chunked(2).forEach { rowPresets ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowPresets.forEach { (label, presetKey) ->
+                                val isSelected = viewModel.eqActivePreset.equals(presetKey, ignoreCase = true)
+                                Button(
+                                    onClick = {
+                                        viewModel.applyEqualizerPreset(presetKey)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2C2C2E),
+                                        contentColor = if (isSelected) Color.Black else ThemeWhite
+                                    ),
+                                    shape = RoundedCornerShape(24.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(40.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            if (rowPresets.size < 2) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Preset Description Text
+                val presetDesc = when (viewModel.eqActivePreset.lowercase()) {
+                    "balanced" -> "A natural sound with well-balanced frequencies."
+                    "bass boost" -> "Enhance lower frequencies for deeper, punchier bass."
+                    "smooth" -> "A smooth, warm sound signature that is comfortable to listen to."
+                    "dynamic" -> "Vibrant, high-energy profile with rich bass and bright treble."
+                    "clear" -> "Crisp vocals and clear midrange for enhanced dialogue and acoustics."
+                    "treble boost" -> "Crisp, sparkling highs for enhanced detail and clarity in treble."
+                    "custom" -> "Manually adjust the equalizer bands to suit your personal preference."
+                    else -> "Adjust the frequency bands to customize your sound signature."
+                }
+
+                Text(
+                    text = presetDesc,
+                    color = SpotifyTextSecondary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         }
     }
