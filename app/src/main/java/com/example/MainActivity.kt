@@ -74,6 +74,12 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.shadow
 
 // SoundScape M3 Dynamic Theme Integration - Maps legacy styling to dynamic MaterialTheme
 val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
@@ -1652,6 +1658,62 @@ fun LibraryScreen(
     }
 }
 
+// ---------------- PLAYLIST COLLAGE GRAPHIC ----------------
+@Composable
+fun PlaylistCollage(
+    songs: List<Song>,
+    modifier: Modifier = Modifier
+) {
+    if (songs.size >= 4) {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .aspectRatio(1f)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SoundScapeArtwork(song = songs[0], modifier = Modifier.fillMaxSize())
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SoundScapeArtwork(song = songs[1], modifier = Modifier.fillMaxSize())
+                    }
+                }
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SoundScapeArtwork(song = songs[2], modifier = Modifier.fillMaxSize())
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SoundScapeArtwork(song = songs[3], modifier = Modifier.fillMaxSize())
+                    }
+                }
+            }
+        }
+    } else if (songs.isNotEmpty()) {
+        SoundScapeArtwork(
+            song = songs[0],
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .aspectRatio(1f)
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(SpotifyMediumGray)
+                .aspectRatio(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                contentDescription = null,
+                tint = SpotifyTextSecondary,
+                modifier = Modifier.size(48.dp)
+            )
+        }
+    }
+}
+
 // ---------------- PLAYLIST DETAIL VIEW ----------------
 @Composable
 fun PlaylistDetailScreen(
@@ -1663,149 +1725,274 @@ fun PlaylistDetailScreen(
     isLikedSongs: Boolean = false,
     isFolderSongs: Boolean = false
 ) {
-    Column(
+    var searchQuery by remember { mutableStateOf("") }
+    var searchBarVisible by remember { mutableStateOf(false) }
+
+    val filteredSongs = remember(songs, searchQuery) {
+        if (searchQuery.isBlank()) {
+            songs
+        } else {
+            songs.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.artist.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    val lazyListState = rememberLazyListState()
+
+    val playlistColor = when {
+        isLikedSongs -> Color(0xFF4F2FE3)
+        isFolderSongs -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        else -> Color(0xFF1E88E5)
+    }
+
+    val backgroundBrush = remember(playlistColor) {
+        Brush.verticalGradient(
+            colors = listOf(
+                playlistColor,
+                playlistColor.copy(alpha = 0.4f),
+                Color.Black
+            ),
+            startY = 0f,
+            endY = 1000f
+        )
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y > 15f && lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0) {
+                    searchBarVisible = true
+                } else if (available.y < -15f && searchQuery.isEmpty()) {
+                    searchBarVisible = false
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .background(backgroundBrush)
+            .nestedScroll(nestedScrollConnection)
     ) {
-        Spacer(modifier = Modifier.height(36.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ThemeWhite)
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = title,
-                color = ThemeWhite,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Large Banner image for Playlist (dynamic styles based on virtual playlists)
-        Box(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(160.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(
-                    brush = if (isLikedSongs) {
-                        Brush.linearGradient(
-                            colors = listOf(Color(0xFF4F2FE3), Color(0xFF8097E4))
-                        )
-                    } else if (isFolderSongs) {
-                        Brush.linearGradient(
-                            colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                        )
-                    } else {
-                        Brush.verticalGradient(
-                            colors = listOf(SpotifyMediumGray, SpotifyBlack)
-                        )
-                    }
-                ),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (isLikedSongs) {
-                    Icon(Icons.Filled.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.size(60.dp))
-                } else if (isFolderSongs) {
-                    Icon(Icons.Filled.Folder, contentDescription = null, tint = Color.Black, modifier = Modifier.size(60.dp))
-                } else {
-                    Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(60.dp))
+            Spacer(modifier = Modifier.height(36.dp))
+
+            // Back button and header title
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ThemeWhite)
                 }
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "${songs.size} tracks",
-                    color = if (isFolderSongs) Color.Black else ThemeWhite,
-                    fontWeight = FontWeight.Bold
+                    text = title,
+                    color = ThemeWhite,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (songs.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+            // Animated Search Bar text field
+            AnimatedVisibility(
+                visible = searchBarVisible,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                Text(text = "No songs here yet!", color = SpotifyTextSecondary, fontSize = 13.sp)
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "Tracks", color = ThemeWhite, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-
-                // Large play-all fab button
-                Button(
-                    onClick = { viewModel.playSong(songs.first(), songs) },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.testTag("playlist_play_all")
-                ) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.Black)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Play All", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    placeholder = { Text("Search in playlist", color = SpotifyTextSecondary, fontSize = 14.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SpotifyTextSecondary) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = null, tint = ThemeWhite)
+                            }
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = SpotifyMediumGray,
+                        unfocusedContainerColor = SpotifyMediumGray,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedTextColor = ThemeWhite,
+                        unfocusedTextColor = ThemeWhite
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true
+                )
             }
 
             LazyColumn(
+                state = lazyListState,
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(songs) { song ->
-                    Row(
+                item {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(SpotifyMediumGray)
-                            .clickable { viewModel.playSong(song, songs) }
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                            SoundScapeArtwork(
-                                song = song,
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(4.dp))
+                        PlaylistCollage(
+                            songs = songs,
+                            modifier = Modifier
+                                .size(160.dp)
+                                .shadow(12.dp, RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
+
+                item {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                        Text(
+                            text = title,
+                            color = ThemeWhite,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${songs.size} tracks",
+                            color = SpotifyTextSecondary,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 12.dp)
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.toggleShuffle() }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Shuffle,
+                                contentDescription = "Shuffle",
+                                tint = if (viewModel.isShuffleEnabled) MaterialTheme.colorScheme.primary else ThemeWhite,
+                                modifier = Modifier.size(28.dp)
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(text = song.title, color = ThemeWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(text = song.artist, color = SpotifyTextSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
                         }
 
-                        if (playlistId != null) {
-                            IconButton(onClick = { viewModel.removeSongFromPlaylist(playlistId, song.id) }) {
-                                Icon(Icons.Default.PlaylistRemove, contentDescription = "Remove", tint = SpotifyTextSecondary)
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                                .clickable {
+                                    if (filteredSongs.isNotEmpty()) {
+                                        if (viewModel.isShuffleEnabled) {
+                                            val shuffledSongs = filteredSongs.shuffled()
+                                            viewModel.playSong(shuffledSongs.first(), filteredSongs)
+                                        } else {
+                                            viewModel.playSong(filteredSongs.first(), filteredSongs)
+                                        }
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayArrow,
+                                contentDescription = "Play",
+                                tint = Color.Black,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                }
+
+                if (filteredSongs.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (searchQuery.isNotEmpty()) "No matching tracks found" else "No songs here yet!",
+                                color = SpotifyTextSecondary,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                } else {
+                    items(filteredSongs) { song ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { viewModel.playSong(song, filteredSongs) }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                SoundScapeArtwork(
+                                    song = song,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = song.title,
+                                        color = ThemeWhite,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = song.artist,
+                                        color = SpotifyTextSecondary,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            if (playlistId != null) {
+                                IconButton(onClick = { viewModel.removeSongFromPlaylist(playlistId, song.id) }) {
+                                    Icon(Icons.Default.PlaylistRemove, contentDescription = "Remove", tint = SpotifyTextSecondary)
+                                }
                             }
                         }
                     }
                 }
+
                 item {
-                    Spacer(modifier = Modifier.height(48.dp))
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
         }
     }
 }
+
 
 // ---------------- SINGLE SONG ITEM ROW ----------------
 @Composable
