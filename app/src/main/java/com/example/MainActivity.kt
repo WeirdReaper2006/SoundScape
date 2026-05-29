@@ -1358,6 +1358,51 @@ fun LibrarySongGridItem(
     }
 }
 
+// ---------------- CUSTOM PLAYLIST LIBRARY ITEM ----------------
+@Composable
+fun PlaylistLibraryItem(
+    name: String,
+    typeLabel: String,
+    playlist: PlaylistEntity,
+    viewModel: MusicViewModel,
+    onClick: () -> Unit
+) {
+    val songs by viewModel.getPlaylistSongs(playlist.id).collectAsStateWithLifecycle(emptyList())
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PlaylistCollage(
+            songs = songs,
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(6.dp))
+        )
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = name,
+                color = ThemeWhite,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = typeLabel,
+                color = SpotifyTextSecondary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
 // ---------------- LIBRARY TAB SCREEN ----------------
 @Composable
 fun LibraryScreen(
@@ -1369,17 +1414,17 @@ fun LibraryScreen(
 ) {
     val favoriteList by viewModel.favoriteSongs.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
-
+ 
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-
+ 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
         Spacer(modifier = Modifier.height(36.dp))
-
+ 
         // Spotify-style Library Header
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1418,7 +1463,7 @@ fun LibraryScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
-
+ 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
                     Icon(
@@ -1438,7 +1483,7 @@ fun LibraryScreen(
                 }
             }
         }
-
+ 
         // Conditionally visible Search input
         if (showSearch) {
             Spacer(modifier = Modifier.height(12.dp))
@@ -1456,40 +1501,9 @@ fun LibraryScreen(
                 modifier = Modifier.fillMaxWidth().height(52.dp)
             )
         }
-
+ 
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Spotify-style Quick Filter / Layout Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Sort,
-                    contentDescription = null,
-                    tint = ThemeWhite,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Recents",
-                    color = ThemeWhite,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Icon(
-                imageVector = Icons.Filled.GridView,
-                contentDescription = null,
-                tint = ThemeWhite,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
+ 
         // Get Local scan folder name
         val folderName = remember(viewModel.musicPath) {
             when (viewModel.musicPath) {
@@ -1499,12 +1513,12 @@ fun LibraryScreen(
                 else -> viewModel.musicPath.substringAfterLast("/")
             }
         }
-
+ 
         // Construct unified list items
         val likedSongsItem = Triple("Liked Songs", "Playlist • ${viewModel.userName}", "liked_songs")
         val folderItem = Triple(folderName, "Folder", "folder_songs")
         val playlistItems = playlists.map { Triple(it.name, "Playlist • ${viewModel.userName}", it) }
-
+ 
         // Filter based on search query
         val filteredVirtuals = listOf(likedSongsItem, folderItem).filter { (name, typeLabel, _) ->
             searchQuery.trim().isEmpty() || name.contains(searchQuery, ignoreCase = true) || typeLabel.contains(searchQuery, ignoreCase = true)
@@ -1512,7 +1526,7 @@ fun LibraryScreen(
         val filteredPlaylists = playlistItems.filter { (name, _, _) ->
             searchQuery.trim().isEmpty() || name.contains(searchQuery, ignoreCase = true)
         }
-
+ 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1527,40 +1541,14 @@ fun LibraryScreen(
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Artwork Gradient Square
-                    Box(
+                    PlaylistCollage(
+                        songs = if (key == "liked_songs") favoriteList else viewModel.allSongs,
                         modifier = Modifier
                             .size(64.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                brush = if (key == "liked_songs") {
-                                    Brush.linearGradient(
-                                        colors = listOf(Color(0xFF4F2FE3), Color(0xFF8097E4))
-                                    )
-                                } else {
-                                    Brush.linearGradient(
-                                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                                    )
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (key == "liked_songs") {
-                            Icon(
-                                imageVector = Icons.Filled.Favorite,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Filled.Folder,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
+                            .clip(RoundedCornerShape(6.dp)),
+                        isLikedSongs = (key == "liked_songs"),
+                        isFolderSongs = (key == "folder_songs")
+                    )
                     
                     Spacer(modifier = Modifier.width(16.dp))
                     
@@ -1592,52 +1580,18 @@ fun LibraryScreen(
                     }
                 }
             }
-
+ 
             // 2. Custom playlists
             items(filteredPlaylists) { (name, typeLabel, playlist) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onPlaylistClick(playlist) }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(SpotifyMediumGray),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.width(16.dp))
-                    
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = name,
-                            color = ThemeWhite,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = typeLabel,
-                            color = SpotifyTextSecondary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
+                PlaylistLibraryItem(
+                    name = name,
+                    typeLabel = typeLabel,
+                    playlist = playlist,
+                    viewModel = viewModel,
+                    onClick = { onPlaylistClick(playlist) }
+                )
             }
-
+ 
             if (filteredVirtuals.isEmpty() && filteredPlaylists.isEmpty()) {
                 item {
                     Box(
@@ -1650,7 +1604,7 @@ fun LibraryScreen(
                     }
                 }
             }
-
+ 
             item {
                 Spacer(modifier = Modifier.height(64.dp))
             }
@@ -1662,7 +1616,9 @@ fun LibraryScreen(
 @Composable
 fun PlaylistCollage(
     songs: List<Song>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isLikedSongs: Boolean = false,
+    isFolderSongs: Boolean = false
 ) {
     if (songs.size >= 4) {
         Box(
@@ -1700,16 +1656,21 @@ fun PlaylistCollage(
         Box(
             modifier = modifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(SpotifyMediumGray)
+                .background(
+                    brush = when {
+                        isLikedSongs -> Brush.linearGradient(listOf(Color(0xFF4F2FE3), Color(0xFF8097E4)))
+                        isFolderSongs -> Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)))
+                        else -> Brush.verticalGradient(listOf(SpotifyMediumGray, SpotifyBlack))
+                    }
+                )
                 .aspectRatio(1f),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                contentDescription = null,
-                tint = SpotifyTextSecondary,
-                modifier = Modifier.size(48.dp)
-            )
+            when {
+                isLikedSongs -> Icon(Icons.Filled.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                isFolderSongs -> Icon(Icons.Filled.Folder, contentDescription = null, tint = Color.Black, modifier = Modifier.size(28.dp))
+                else -> Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+            }
         }
     }
 }
@@ -1727,6 +1688,8 @@ fun PlaylistDetailScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var searchBarVisible by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var sortType by remember { mutableStateOf("default") } // "default", "title", "artist"
 
     val filteredSongs = remember(songs, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -1736,6 +1699,14 @@ fun PlaylistDetailScreen(
                 it.title.contains(searchQuery, ignoreCase = true) ||
                 it.artist.contains(searchQuery, ignoreCase = true)
             }
+        }
+    }
+
+    val sortedSongs = remember(filteredSongs, sortType) {
+        when (sortType) {
+            "title" -> filteredSongs.sortedBy { it.title.lowercase() }
+            "artist" -> filteredSongs.sortedBy { it.artist.lowercase() }
+            else -> filteredSongs
         }
     }
 
@@ -1854,7 +1825,9 @@ fun PlaylistDetailScreen(
                             songs = songs,
                             modifier = Modifier
                                 .size(160.dp)
-                                .shadow(12.dp, RoundedCornerShape(8.dp))
+                                .shadow(12.dp, RoundedCornerShape(8.dp)),
+                            isLikedSongs = isLikedSongs,
+                            isFolderSongs = isFolderSongs
                         )
                     }
                 }
@@ -1894,6 +1867,38 @@ fun PlaylistDetailScreen(
                             )
                         }
 
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Sort button next to Shuffle
+                        Box {
+                            IconButton(onClick = { showSortMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Sort,
+                                    contentDescription = "Sort tracks",
+                                    tint = if (sortType != "default") MaterialTheme.colorScheme.primary else ThemeWhite,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showSortMenu,
+                                onDismissRequest = { showSortMenu = false },
+                                modifier = Modifier.background(SpotifyDark)
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Default Order", color = if (sortType == "default") MaterialTheme.colorScheme.primary else ThemeWhite) },
+                                    onClick = { sortType = "default"; showSortMenu = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Title (A-Z)", color = if (sortType == "title") MaterialTheme.colorScheme.primary else ThemeWhite) },
+                                    onClick = { sortType = "title"; showSortMenu = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Artist (A-Z)", color = if (sortType == "artist") MaterialTheme.colorScheme.primary else ThemeWhite) },
+                                    onClick = { sortType = "artist"; showSortMenu = false }
+                                )
+                            }
+                        }
+
                         Spacer(modifier = Modifier.weight(1f))
 
                         Box(
@@ -1902,12 +1907,12 @@ fun PlaylistDetailScreen(
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.primary)
                                 .clickable {
-                                    if (filteredSongs.isNotEmpty()) {
+                                    if (sortedSongs.isNotEmpty()) {
                                         if (viewModel.isShuffleEnabled) {
-                                            val shuffledSongs = filteredSongs.shuffled()
-                                            viewModel.playSong(shuffledSongs.first(), filteredSongs)
+                                            val shuffledSongs = sortedSongs.shuffled()
+                                            viewModel.playSong(shuffledSongs.first(), sortedSongs)
                                         } else {
-                                            viewModel.playSong(filteredSongs.first(), filteredSongs)
+                                            viewModel.playSong(sortedSongs.first(), sortedSongs)
                                         }
                                     }
                                 },
@@ -1923,7 +1928,7 @@ fun PlaylistDetailScreen(
                     }
                 }
 
-                if (filteredSongs.isEmpty()) {
+                if (sortedSongs.isEmpty()) {
                     item {
                         Box(
                             modifier = Modifier
@@ -1939,12 +1944,12 @@ fun PlaylistDetailScreen(
                         }
                     }
                 } else {
-                    items(filteredSongs) { song ->
+                    items(sortedSongs) { song ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { viewModel.playSong(song, filteredSongs) }
+                                .clickable { viewModel.playSong(song, sortedSongs) }
                                 .padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
