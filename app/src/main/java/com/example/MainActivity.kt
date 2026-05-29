@@ -2277,38 +2277,6 @@ fun ExpandedPlayerScreen(
                         modifier = Modifier.size(26.dp)
                     )
                 }
-                var showPlayerOptionsMenu by remember { mutableStateOf(false) }
-                Box {
-                    IconButton(onClick = { showPlayerOptionsMenu = true }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "More options",
-                            tint = ThemeWhite
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showPlayerOptionsMenu,
-                        onDismissRequest = { showPlayerOptionsMenu = false },
-                        modifier = Modifier.background(SpotifyDark)
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Add to Playlist", color = ThemeWhite) },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
-                            onClick = {
-                                viewModel.showAddToPlaylistDialog = song
-                                showPlayerOptionsMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Edit Metadata", color = ThemeWhite) },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
-                            onClick = {
-                                viewModel.showEditTagsDialog = song
-                                showPlayerOptionsMenu = false
-                            }
-                        )
-                    }
-                }
             }
         }
 
@@ -2359,16 +2327,31 @@ fun ExpandedPlayerScreen(
                 )
             }
 
-            IconButton(
-                onClick = { viewModel.toggleFavorite(song) },
-                modifier = Modifier.testTag("btn_favorite")
-            ) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = "Favorite",
-                    tint = if (isFavorite) SpotifyGreen else ThemeWhite,
-                    modifier = Modifier.size(28.dp)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { viewModel.toggleFavorite(song) },
+                    modifier = Modifier.testTag("btn_favorite")
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (isFavorite) SpotifyGreen else ThemeWhite,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                IconButton(
+                    onClick = { viewModel.showAddToPlaylistDialog = song }
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
+                        contentDescription = "Add to Playlist",
+                        tint = ThemeWhite,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
 
