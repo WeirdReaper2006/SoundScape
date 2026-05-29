@@ -1762,7 +1762,7 @@ fun PlaylistDetailScreen(
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (available.y > 15f && lazyListState.firstVisibleItemIndex == 0 && lazyListState.firstVisibleItemScrollOffset == 0) {
+                if (available.y > 15f) {
                     searchBarVisible = true
                 } else if (available.y < -15f && searchQuery.isEmpty()) {
                     searchBarVisible = false
