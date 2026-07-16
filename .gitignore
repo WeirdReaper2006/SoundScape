@@ -6,8 +6,6 @@ build/
 app/build/
 .build-outputs/
 captures/
-gradlew
-gradlew.bat
 
 # Local configuration files
 local.properties
