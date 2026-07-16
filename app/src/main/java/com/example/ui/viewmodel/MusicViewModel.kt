@@ -504,37 +504,49 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Builds a MediaItem carrying the full Song payload (as MediaMetadata extras) so that
+    // MusicService can reconstruct a Song and record a recent play without any DB/UI dependency.
+    private fun buildMediaItem(qSong: Song): MediaItem {
+        val extras = android.os.Bundle().apply {
+            putString("path", qSong.path)
+            putLong("durationMs", qSong.durationMs)
+            putString("albumArtUri", qSong.albumArtUri)
+            putBoolean("isLocal", qSong.isLocal)
+        }
+        val mediaMetadata = MediaMetadata.Builder()
+            .setTitle(qSong.title)
+            .setArtist(qSong.artist)
+            .setAlbumTitle(qSong.album)
+            .setArtworkUri(qSong.albumArtUri?.let { android.net.Uri.parse(it) })
+            .setExtras(extras)
+            .build()
+
+        return MediaItem.Builder()
+            .setMediaId(qSong.id)
+            .setUri(qSong.path)
+            .setMimeType(qSong.mimeType ?: "audio/*")
+            .setMediaMetadata(mediaMetadata)
+            .build()
+    }
+
     // Playback control functions
     fun playSong(song: Song, queue: List<Song> = allSongs) {
         originalQueue = queue
         mediaController?.let { controller ->
             var finalQueue = queue
             val songIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-            
+
             if (isShuffleEnabled) {
                 val remaining = queue.filter { it.id != song.id }.toMutableList()
                 remaining.shuffle()
                 finalQueue = listOf(song) + remaining
             }
-            
+
             currentQueue = finalQueue
             controller.clearMediaItems()
-            
-            finalQueue.forEach { qSong ->
-                val mediaMetadata = MediaMetadata.Builder()
-                    .setTitle(qSong.title)
-                    .setArtist(qSong.artist)
-                    .setAlbumTitle(qSong.album)
-                    .setArtworkUri(qSong.albumArtUri?.let { android.net.Uri.parse(it) })
-                    .build()
 
-                val item = MediaItem.Builder()
-                    .setMediaId(qSong.id)
-                    .setUri(qSong.path)
-                    .setMimeType(qSong.mimeType ?: "audio/*")
-                    .setMediaMetadata(mediaMetadata)
-                    .build()
-                controller.addMediaItem(item)
+            finalQueue.forEach { qSong ->
+                controller.addMediaItem(buildMediaItem(qSong))
             }
 
             val targetIndex = finalQueue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
@@ -543,10 +555,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             controller.play()
             currentPlayingSong = song
             updatePlaybackStateFromController()
-
-            viewModelScope.launch(Dispatchers.IO) {
-                repository.addRecentPlay(song)
-            }
         }
     }
 
@@ -613,20 +621,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
         
         remaining.forEach { qSong ->
-            val mediaMetadata = MediaMetadata.Builder()
-                .setTitle(qSong.title)
-                .setArtist(qSong.artist)
-                .setAlbumTitle(qSong.album)
-                .setArtworkUri(qSong.albumArtUri?.let { android.net.Uri.parse(it) })
-                .build()
-
-            val item = MediaItem.Builder()
-                .setMediaId(qSong.id)
-                .setUri(qSong.path)
-                .setMimeType(qSong.mimeType ?: "audio/*")
-                .setMediaMetadata(mediaMetadata)
-                .build()
-            controller.addMediaItem(item)
+            controller.addMediaItem(buildMediaItem(qSong))
         }
     }
 
@@ -653,20 +648,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
         
         remainingOriginalSongs.forEach { qSong ->
-            val mediaMetadata = MediaMetadata.Builder()
-                .setTitle(qSong.title)
-                .setArtist(qSong.artist)
-                .setAlbumTitle(qSong.album)
-                .setArtworkUri(qSong.albumArtUri?.let { android.net.Uri.parse(it) })
-                .build()
-
-            val item = MediaItem.Builder()
-                .setMediaId(qSong.id)
-                .setUri(qSong.path)
-                .setMimeType(qSong.mimeType ?: "audio/*")
-                .setMediaMetadata(mediaMetadata)
-                .build()
-            controller.addMediaItem(item)
+            controller.addMediaItem(buildMediaItem(qSong))
         }
     }
 
@@ -784,21 +766,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             updated.add(song)
             currentQueue = updated
 
-            val mediaMetadata = MediaMetadata.Builder()
-                .setTitle(song.title)
-                .setArtist(song.artist)
-                .setAlbumTitle(song.album)
-                .setArtworkUri(song.albumArtUri?.let { android.net.Uri.parse(it) })
-                .build()
-
-            val item = MediaItem.Builder()
-                .setMediaId(song.id)
-                .setUri(song.path)
-                .setMimeType(song.mimeType ?: "audio/*")
-                .setMediaMetadata(mediaMetadata)
-                .build()
-
-            controller.addMediaItem(item)
+            controller.addMediaItem(buildMediaItem(song))
             android.widget.Toast.makeText(getApplication(), "Added to queue: ${song.title}", android.widget.Toast.LENGTH_SHORT).show()
         } ?: run {
             // Fallback if media controller is not initialized

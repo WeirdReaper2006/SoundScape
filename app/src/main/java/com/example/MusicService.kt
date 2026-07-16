@@ -15,6 +15,14 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.example.data.db.AppDatabase
+import com.example.data.models.Song
+import com.example.data.repository.MusicRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class MusicService : MediaSessionService() {
 
@@ -27,6 +35,10 @@ class MusicService : MediaSessionService() {
     private val monoAudioProcessor = MonoAudioProcessor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var hasAutomixedCurrentTrack = false
+    private var hasRecordedCurrentTrack = false
+
+    private lateinit var repository: MusicRepository
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val checkPlaybackRunnable = object : Runnable {
         override fun run() {
@@ -38,7 +50,9 @@ class MusicService : MediaSessionService() {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
-        
+
+        repository = MusicRepository(this, AppDatabase.getDatabase(this).musicDao())
+
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
@@ -80,7 +94,8 @@ class MusicService : MediaSessionService() {
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 hasAutomixedCurrentTrack = false
-                
+                hasRecordedCurrentTrack = false
+
                 val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
                 val gapless = prefs.getBoolean("gapless_playback", true)
                 
@@ -191,8 +206,10 @@ class MusicService : MediaSessionService() {
 
         val currentPosition = p.currentPosition
         val duration = p.duration
-        
+
         if (duration <= 0) return
+
+        maybeRecordRecentPlay(p, currentPosition, duration)
 
         val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
         val crossfadeDurationSec = prefs.getInt("crossfade_duration", 0)
@@ -231,6 +248,34 @@ class MusicService : MediaSessionService() {
         }
     }
 
+    private fun maybeRecordRecentPlay(p: Player, currentPosition: Long, duration: Long) {
+        if (hasRecordedCurrentTrack) return
+        val threshold = minOf(30_000L, duration / 2)
+        if (currentPosition < threshold) return
+
+        hasRecordedCurrentTrack = true
+        val mediaItem = p.currentMediaItem ?: return
+        val song = songFromMediaItem(mediaItem, duration) ?: return
+        serviceScope.launch { repository.addRecentPlay(song) }
+    }
+
+    private fun songFromMediaItem(item: MediaItem, playerDuration: Long): Song? {
+        val md = item.mediaMetadata
+        val extras = md.extras ?: return null
+        val path = extras.getString("path") ?: return null
+        return Song(
+            id = item.mediaId,
+            title = md.title?.toString() ?: "",
+            artist = md.artist?.toString() ?: "",
+            album = md.albumTitle?.toString() ?: "",
+            path = path,
+            durationMs = extras.getLong("durationMs", playerDuration),
+            albumArtUri = extras.getString("albumArtUri"),
+            isLocal = extras.getBoolean("isLocal", true),
+            mimeType = item.localConfiguration?.mimeType
+        )
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "com.example.ACTION_RELOAD_EFFECTS") {
             reloadAudioEffects()
@@ -253,6 +298,7 @@ class MusicService : MediaSessionService() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(checkPlaybackRunnable)
+        serviceScope.cancel()
         equalizer?.release()
         bassBoost?.release()
         equalizer = null
