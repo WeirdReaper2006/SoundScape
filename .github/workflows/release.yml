@@ -97,6 +97,10 @@ jobs:
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
+      - name: Decode debug keystore
+        if: steps.variant.outputs.name == 'debug'
+        run: base64 -d debug.keystore.base64 > debug.keystore
+
       - name: Build APK
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
