@@ -35,10 +35,9 @@ jobs:
         run: chmod +x gradlew
 
       # Version format is Major.Minor (no patch), derived from the latest
-      # existing "vX.Y" tag plus the commit-message headings pushed in this run:
-      #   "feat!: ..." / "feat(scope)!: ..." (or any "type!:") -> major bump, minor reset to 0
-      #   "feat: ..."  / "feat(scope): ..."                    -> minor bump
-      #   anything else                                        -> no bump, no release
+      # existing "vX.Y" tag. Every commit heading pushed in this run is scanned;
+      # if any is a breaking change ("feat!: ..." / any "type!:") -> major bump,
+      # otherwise -> minor bump. Every push produces a release.
       - name: Compute next version
         id: version
         run: |
@@ -57,12 +56,10 @@ jobs:
           echo "Commit headings in this push:"
           echo "$SUBJECTS"
 
-          BUMP="none"
+          BUMP="minor"
           while IFS= read -r subject; do
             if echo "$subject" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:'; then
               BUMP="major"
-            elif echo "$subject" | grep -qE '^feat(\([^)]*\))?:' && [ "$BUMP" != "major" ]; then
-              BUMP="minor"
             fi
           done <<< "$SUBJECTS"
           echo "Bump: $BUMP"
@@ -77,8 +74,7 @@ jobs:
           esac
 
           NEW_VERSION="$MAJOR.$MINOR"
-          echo "should_release=$([ "$BUMP" = "none" ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
-          echo "New version: v$NEW_VERSION (release: $([ "$BUMP" = "none" ] && echo no || echo yes))"
+          echo "New version: v$NEW_VERSION"
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
@@ -86,7 +82,6 @@ jobs:
       # Otherwise we fall back to a debug-signed build so the workflow always succeeds.
       - name: Decide build variant
         id: variant
-        if: steps.version.outputs.should_release == 'true'
         run: |
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "name=release" >> "$GITHUB_OUTPUT"
@@ -97,13 +92,12 @@ jobs:
           fi
 
       - name: Decode release keystore
-        if: steps.version.outputs.should_release == 'true' && steps.variant.outputs.name == 'release'
+        if: steps.variant.outputs.name == 'release'
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Build APK
-        if: steps.version.outputs.should_release == 'true'
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
@@ -111,7 +105,6 @@ jobs:
 
       - name: Rename artifact
         id: artifact
-        if: steps.version.outputs.should_release == 'true'
         run: |
           mkdir -p release-output
           SRC="app/build/outputs/apk/${{ steps.variant.outputs.name }}/app-${{ steps.variant.outputs.name }}.apk"
@@ -126,7 +119,6 @@ jobs:
       # Tag is only created once the build succeeds, and is pushed to the repo
       # as a real ref so the release is published against a tag, not a branch.
       - name: Create and push tag
-        if: steps.version.outputs.should_release == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -134,7 +126,6 @@ jobs:
           git push origin "${{ steps.version.outputs.tag }}"
 
       - name: Create GitHub release
-        if: steps.version.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
