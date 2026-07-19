@@ -287,10 +287,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 mediaController = controllerFuture?.get()
                 setupControllerListener()
                 updatePlaybackStateFromController()
+                pendingControllerAction?.let { action ->
+                    pendingControllerAction = null
+                    mediaController?.let(action)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }, ContextCompat.getMainExecutor(getApplication()))
+    }
+
+    // Holds the most recent playback action requested before the MediaController finished
+    // connecting, so a tap made right after launch isn't silently dropped. Only the latest
+    // request is kept, matching normal tap-to-play behavior.
+    private var pendingControllerAction: ((MediaController) -> Unit)? = null
+
+    private fun withController(action: (MediaController) -> Unit) {
+        val controller = mediaController
+        if (controller != null) {
+            action(controller)
+        } else {
+            pendingControllerAction = action
+        }
     }
 
     private fun setupControllerListener() {
@@ -546,7 +564,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Playback control functions
     fun playSong(song: Song, queue: List<Song> = allSongs) {
         originalQueue = queue
-        mediaController?.let { controller ->
+        withController { controller ->
             var finalQueue = queue
             val songIndex = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
@@ -573,7 +591,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun togglePlayPause() {
-        mediaController?.let { controller ->
+        withController { controller ->
             if (controller.isPlaying) {
                 controller.pause()
             } else {
