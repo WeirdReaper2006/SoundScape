@@ -217,13 +217,13 @@ class MusicService : MediaSessionService() {
 
         if (crossfadeDurationSec > 0) {
             val fadeDurationMs = crossfadeDurationSec * 1000L
-            
-            // Automix early transition
-            if (automixEnabled && !hasAutomixedCurrentTrack && p.hasNextMediaItem() && (duration - currentPosition <= 3000L)) {
-                hasAutomixedCurrentTrack = true
-                p.seekToNextMediaItem()
-                return
-            }
+
+            // With a single player (no true dual-track overlap), the fade-out below is what
+            // makes crossfade audible: volume ramps down to 0 by the natural end of the track,
+            // and the next item then starts via the normal auto transition. The manual "automix"
+            // early-seek (used to skip trailing silence when crossfade is off) is skipped here:
+            // triggering it during the fade window would cut the fade-out short at whatever
+            // level it had reached, producing an audible jump instead of a smooth fade.
 
             // Crossfade volume
             if (duration - currentPosition <= fadeDurationMs) {
