@@ -17,8 +17,10 @@ android {
     applicationId = "com.soundscape"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.4"
+    // Overridden by CI (-PappVersionCode/-PappVersionName) so the APK's actual version
+    // matches the git tag it's released under. These are local-dev-only fallbacks.
+    versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+    versionName = (project.findProperty("appVersionName") as String?) ?: "1.4"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

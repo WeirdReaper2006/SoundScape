@@ -78,6 +78,12 @@ jobs:
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
+          # versionCode must strictly increase across releases; total commit count
+          # does that regardless of the major/minor scheme above.
+          VERSION_CODE=$(git rev-list --count HEAD)
+          echo "Version code: $VERSION_CODE"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
       # Release signing is used only when the KEYSTORE_BASE64 secret is configured.
       # Otherwise we fall back to a debug-signed build so the workflow always succeeds.
       - name: Decide build variant
@@ -105,7 +111,10 @@ jobs:
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew ${{ steps.variant.outputs.task }} --no-daemon
+        run: |
+          ./gradlew ${{ steps.variant.outputs.task }} --no-daemon \
+            -PappVersionName="${{ steps.version.outputs.version }}" \
+            -PappVersionCode="${{ steps.version.outputs.code }}"
 
       - name: Rename artifact
         id: artifact
