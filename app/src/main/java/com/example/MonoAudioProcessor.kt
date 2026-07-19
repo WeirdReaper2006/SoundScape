@@ -17,6 +17,13 @@ class MonoAudioProcessor : BaseAudioProcessor() {
         return inputAudioFormat
     }
 
+    override fun isActive(): Boolean {
+        // Without this, BaseAudioProcessor reports active as soon as it's configured
+        // (any non-NOT_SET format), so this processor stays in the audio pipeline doing
+        // a redundant buffer copy on every frame even while mono mixing is turned off.
+        return monoEnabled && super.isActive()
+    }
+
     override fun queueInput(inputBuffer: ByteBuffer) {
         val position = inputBuffer.position()
         val limit = inputBuffer.limit()
