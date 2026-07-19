@@ -34,7 +34,7 @@
         <service
             android:name="com.example.MusicService"
             android:enabled="true"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="mediaPlayback"
             tools:ignore="InstantiatingService">
             <intent-filter>
