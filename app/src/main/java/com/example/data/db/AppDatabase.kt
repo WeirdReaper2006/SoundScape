@@ -65,7 +65,7 @@ interface MusicDao {
     @Query("SELECT * FROM favorites")
     fun getFavorites(): Flow<List<FavoriteEntity>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertFavorite(favorite: FavoriteEntity)
 
     @Query("DELETE FROM favorites WHERE songId = :songId")
