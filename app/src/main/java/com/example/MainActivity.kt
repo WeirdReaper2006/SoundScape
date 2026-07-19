@@ -103,12 +103,13 @@ fun getEmbeddedPicture(context: android.content.Context, path: String): ByteArra
         }
         retriever.embeddedPicture
     } catch (e: Exception) {
+        com.example.util.AppLogger.w("MainActivity", "Failed to extract embedded picture for song", e)
         null
     } finally {
         try {
             retriever.release()
         } catch (e: Exception) {
-            // ignore
+            com.example.util.AppLogger.w("MainActivity", "Failed to release MediaMetadataRetriever", e)
         }
     }
 }
@@ -216,7 +217,7 @@ fun getFolderSearchFilterFromUri(context: android.content.Context, uri: android.
             }
         }
     } catch (e: Exception) {
-        e.printStackTrace()
+        com.example.util.AppLogger.e("MainActivity", "Failed to resolve folder search filter from URI", e)
     }
     return uri.lastPathSegment ?: ""
 }

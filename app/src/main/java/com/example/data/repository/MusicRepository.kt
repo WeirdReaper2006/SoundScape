@@ -7,10 +7,14 @@ import android.os.Build
 import android.provider.MediaStore
 import com.example.data.db.*
 import com.example.data.models.Song
+import com.example.util.AppLogger
+import com.example.util.UserFacingException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+
+private const val TAG = "MusicRepository"
 
 class MusicRepository(
     private val context: Context,
@@ -122,7 +126,7 @@ class MusicRepository(
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            AppLogger.e(TAG, "Failed to query local songs from MediaStore", e)
         }
 
         songList
@@ -145,22 +149,32 @@ class MusicRepository(
     }
 
     suspend fun addFavorite(song: Song) = withContext(Dispatchers.IO) {
-        musicDao.insertFavorite(
-            FavoriteEntity(
-                songId = song.id,
-                title = song.title,
-                artist = song.artist,
-                album = song.album,
-                path = song.path,
-                durationMs = song.durationMs,
-                albumArtUri = song.albumArtUri,
-                isLocal = song.isLocal
+        try {
+            musicDao.insertFavorite(
+                FavoriteEntity(
+                    songId = song.id,
+                    title = song.title,
+                    artist = song.artist,
+                    album = song.album,
+                    path = song.path,
+                    durationMs = song.durationMs,
+                    albumArtUri = song.albumArtUri,
+                    isLocal = song.isLocal
+                )
             )
-        )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to add favorite for song ${song.id}", e)
+            throw UserFacingException("Could not add this song to favorites. Please try again.")
+        }
     }
 
     suspend fun removeFavorite(songId: String) = withContext(Dispatchers.IO) {
-        musicDao.deleteFavorite(songId)
+        try {
+            musicDao.deleteFavorite(songId)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to remove favorite for song $songId", e)
+            throw UserFacingException("Could not remove this song from favorites. Please try again.")
+        }
     }
 
     fun isFavorite(songId: String): Flow<Boolean> {
@@ -170,31 +184,51 @@ class MusicRepository(
     val playlists: Flow<List<PlaylistEntity>> = musicDao.getPlaylists()
 
     suspend fun createPlaylist(name: String): Long = withContext(Dispatchers.IO) {
-        musicDao.insertPlaylist(PlaylistEntity(name = name))
+        try {
+            musicDao.insertPlaylist(PlaylistEntity(name = name))
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to create playlist '$name'", e)
+            throw UserFacingException("Could not create the playlist. Please try again.")
+        }
     }
 
     suspend fun deletePlaylist(playlistId: Long) = withContext(Dispatchers.IO) {
-        musicDao.deletePlaylist(playlistId)
+        try {
+            musicDao.deletePlaylist(playlistId)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to delete playlist $playlistId", e)
+            throw UserFacingException("Could not delete the playlist. Please try again.")
+        }
     }
 
     suspend fun addSongToPlaylist(playlistId: Long, song: Song) = withContext(Dispatchers.IO) {
-        musicDao.insertPlaylistSong(
-            PlaylistSongCrossRef(
-                playlistId = playlistId,
-                songId = song.id,
-                title = song.title,
-                artist = song.artist,
-                album = song.album,
-                path = song.path,
-                durationMs = song.durationMs,
-                albumArtUri = song.albumArtUri,
-                isLocal = song.isLocal
+        try {
+            musicDao.insertPlaylistSong(
+                PlaylistSongCrossRef(
+                    playlistId = playlistId,
+                    songId = song.id,
+                    title = song.title,
+                    artist = song.artist,
+                    album = song.album,
+                    path = song.path,
+                    durationMs = song.durationMs,
+                    albumArtUri = song.albumArtUri,
+                    isLocal = song.isLocal
+                )
             )
-        )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to add song ${song.id} to playlist $playlistId", e)
+            throw UserFacingException("Could not add this song to the playlist. Please try again.")
+        }
     }
 
     suspend fun removeSongFromPlaylist(playlistId: Long, songId: String) = withContext(Dispatchers.IO) {
-        musicDao.deletePlaylistSong(playlistId, songId)
+        try {
+            musicDao.deletePlaylistSong(playlistId, songId)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to remove song $songId from playlist $playlistId", e)
+            throw UserFacingException("Could not remove this song from the playlist. Please try again.")
+        }
     }
 
     fun getPlaylistSongs(playlistId: Long): Flow<List<Song>> {
@@ -217,37 +251,46 @@ class MusicRepository(
     val songOverrides: Flow<List<SongOverrideEntity>> = musicDao.getOverrides()
 
     suspend fun saveSongOverride(songId: String, title: String, artist: String, album: String) = withContext(Dispatchers.IO) {
-        musicDao.insertOverride(SongOverrideEntity(songId, title, artist, album))
+        try {
+            musicDao.insertOverride(SongOverrideEntity(songId, title, artist, album))
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to save song override for $songId", e)
+            throw UserFacingException("Could not save your changes. Please try again.")
+        }
     }
 
     val recentPlays: Flow<List<RecentPlayEntity>> = musicDao.getRecentPlays()
 
     suspend fun addRecentPlay(song: Song) = withContext(Dispatchers.IO) {
-        val cutoff = System.currentTimeMillis() - 15552000000L // 6 months in ms
-        musicDao.deleteOldRecentPlays(cutoff)
-        
-        // Remove previous play log of the same song on the current calendar day
-        val cal = java.util.Calendar.getInstance().apply {
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
-        }
-        musicDao.deleteRecentPlayForSongOnDay(song.id, cal.timeInMillis)
+        try {
+            val cutoff = System.currentTimeMillis() - 15552000000L // 6 months in ms
+            musicDao.deleteOldRecentPlays(cutoff)
 
-        musicDao.insertRecentPlay(
-            RecentPlayEntity(
-                songId = song.id,
-                title = song.title,
-                artist = song.artist,
-                album = song.album,
-                path = song.path,
-                durationMs = song.durationMs,
-                albumArtUri = song.albumArtUri,
-                isLocal = song.isLocal,
-                timestamp = System.currentTimeMillis()
+            // Remove previous play log of the same song on the current calendar day
+            val cal = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            musicDao.deleteRecentPlayForSongOnDay(song.id, cal.timeInMillis)
+
+            musicDao.insertRecentPlay(
+                RecentPlayEntity(
+                    songId = song.id,
+                    title = song.title,
+                    artist = song.artist,
+                    album = song.album,
+                    path = song.path,
+                    durationMs = song.durationMs,
+                    albumArtUri = song.albumArtUri,
+                    isLocal = song.isLocal,
+                    timestamp = System.currentTimeMillis()
+                )
             )
-        )
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "Failed to record recent play for song ${song.id}", e)
+        }
     }
 }
 

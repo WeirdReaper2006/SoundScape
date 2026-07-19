@@ -157,7 +157,7 @@ class MusicService : MediaSessionService() {
             }
             reloadAudioEffects()
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.example.util.AppLogger.e("MusicService", "Failed to set up audio effects", e)
         }
     }
 
@@ -186,7 +186,7 @@ class MusicService : MediaSessionService() {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.example.util.AppLogger.e("MusicService", "Failed to reload audio effects", e)
         }
     }
 
@@ -196,7 +196,7 @@ class MusicService : MediaSessionService() {
             val monoEnabled = prefs.getBoolean("mono_audio", false)
             monoAudioProcessor.monoEnabled = monoEnabled
         } catch (e: Exception) {
-            e.printStackTrace()
+            com.example.util.AppLogger.e("MusicService", "Failed to reload playback settings", e)
         }
     }
 

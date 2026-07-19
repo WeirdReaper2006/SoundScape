@@ -25,6 +25,7 @@ import com.example.data.db.AppDatabase
 import com.example.data.db.PlaylistEntity
 import com.example.data.models.Song
 import com.example.data.repository.MusicRepository
+import com.example.util.AppLogger
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -292,7 +293,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     mediaController?.let(action)
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                AppLogger.e("MusicViewModel", "Failed to connect MediaController", e)
             }
         }, ContextCompat.getMainExecutor(getApplication()))
     }
@@ -434,6 +435,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 // Start background scan of genres asynchronously so that UI loads instantaneously!
                 startAsynchronousGenreScanning(allSongs)
             } catch (e: Exception) {
+                AppLogger.e("MusicViewModel", "Failed to refresh library", e)
                 allSongs = emptyList()
                 searchResults = allSongs
             } finally {
@@ -487,9 +489,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                             }
                         } catch (e: Exception) {
-                            // ignore
+                            AppLogger.w("MusicViewModel", "Failed to extract genre for song ${song.id}", e)
                         } finally {
-                            try { retriever.release() } catch (ex: Exception) {}
+                            try { retriever.release() } catch (ex: Exception) {
+                                AppLogger.w("MusicViewModel", "Failed to release MediaMetadataRetriever", ex)
+                            }
                         }
                         extractedGenre ?: "Unknown"
                     }
@@ -827,7 +831,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 controller.removeMediaItem(index)
             } catch (e: Exception) {
-                e.printStackTrace()
+                AppLogger.e("MusicViewModel", "Failed to remove media item at index $index from controller queue", e)
             }
         }
         android.widget.Toast.makeText(getApplication(), "Removed from queue", android.widget.Toast.LENGTH_SHORT).show()
@@ -843,7 +847,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     controller.moveMediaItem(fromIndex, toIndex)
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    AppLogger.e("MusicViewModel", "Failed to move media item from $fromIndex to $toIndex", e)
                 }
             }
         }
@@ -1099,10 +1103,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     android.widget.Toast.LENGTH_LONG
                 ).show()
             } catch (e: Exception) {
-                e.printStackTrace()
+                AppLogger.e("MusicViewModel", "Failed to export playlist '$playlistName' (id=$playlistId) to M3U", e)
                 android.widget.Toast.makeText(
                     getApplication(),
-                    "Export failed: ${e.localizedMessage}",
+                    "Failed to export playlist. Please try again.",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
             }
@@ -1116,7 +1120,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val musicDir = getBaseMusicDirectory()
                 scanDirForM3U(musicDir, list)
             } catch (e: Exception) {
-                e.printStackTrace()
+                AppLogger.e("MusicViewModel", "Failed to scan for M3U playlists", e)
             }
             viewModelScope.launch(Dispatchers.Main) {
                 availableM3UFiles.clear()
@@ -1203,10 +1207,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 ).show()
                 refreshLibrary()
             } catch (e: Exception) {
-                e.printStackTrace()
+                AppLogger.e("MusicViewModel", "Failed to import playlist from M3U file ${file.name}", e)
                 android.widget.Toast.makeText(
                     getApplication(),
-                    "Import failed: ${e.localizedMessage}",
+                    "Failed to import playlist. Please check the file and try again.",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
             }
