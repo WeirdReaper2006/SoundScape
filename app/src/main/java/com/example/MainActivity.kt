@@ -352,9 +352,10 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                     ) {
                         NavigationBarItem(
                             selected = viewModel.activeTabIndex == 0,
-                            onClick = { 
+                            onClick = {
                                 viewModel.activeTabIndex = 0
-                                activePlaylistForDetail = null 
+                                activePlaylistForDetail = null
+                                activeVirtualPlaylistType = null
                                 viewModel.showRecentsPage = false
                             },
                             icon = { Icon(if (viewModel.activeTabIndex == 0) Icons.Filled.Home else Icons.Outlined.Home, contentDescription = "Home") },
@@ -369,9 +370,10 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         )
                         NavigationBarItem(
                             selected = viewModel.activeTabIndex == 1,
-                            onClick = { 
+                            onClick = {
                                 viewModel.activeTabIndex = 1
                                 activePlaylistForDetail = null
+                                activeVirtualPlaylistType = null
                                 viewModel.showRecentsPage = false
                             },
                             icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
@@ -387,9 +389,10 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         )
                         NavigationBarItem(
                             selected = viewModel.activeTabIndex == 2,
-                            onClick = { 
+                            onClick = {
                                 viewModel.activeTabIndex = 2
                                 activePlaylistForDetail = null
+                                activeVirtualPlaylistType = null
                                 viewModel.showRecentsPage = false
                             },
                             icon = { Icon(if (viewModel.activeTabIndex == 2) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic, contentDescription = "Your Library") },
