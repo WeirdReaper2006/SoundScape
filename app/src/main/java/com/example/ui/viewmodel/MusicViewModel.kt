@@ -26,6 +26,7 @@ import com.example.data.db.PlaylistEntity
 import com.example.data.models.Song
 import com.example.data.repository.MusicRepository
 import com.example.util.AppLogger
+import com.example.util.InputValidator
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -247,6 +248,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateProfile(name: String, path: String) {
+        val nameCheck = InputValidator.validateName(name)
+        if (nameCheck is InputValidator.ValidationResult.Invalid) {
+            showRejectionToast(nameCheck.reason)
+            return
+        }
+        if (path.isNotBlank()) {
+            val pathCheck = InputValidator.validateFolderSuffix(path)
+            if (pathCheck is InputValidator.ValidationResult.Invalid) {
+                showRejectionToast(pathCheck.reason)
+                return
+            }
+        }
         val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit()
             .putString("user_name", name.trim())
@@ -257,6 +270,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         musicPath = path.trim()
         isOnboardingCompleted = true
         refreshLibrary()
+    }
+
+    private fun showRejectionToast(reason: String) {
+        android.widget.Toast.makeText(getApplication(), reason, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     fun updateTheme(preset: String, isDark: Boolean, customColorHex: String) {
@@ -528,6 +545,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onSearchQueryChanged(query: String) {
+        if (InputValidator.validateSearchQuery(query) is InputValidator.ValidationResult.Invalid) {
+            return
+        }
         searchQuery = query
         searchResults = if (query.isBlank()) {
             allSongs
@@ -759,10 +779,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createPlaylist(name: String) {
+        val check = InputValidator.validatePlaylistName(name)
+        if (check is InputValidator.ValidationResult.Invalid) {
+            showRejectionToast(check.reason)
+            return
+        }
         viewModelScope.launch {
-            if (name.isNotBlank()) {
-                repository.createPlaylist(name)
-            }
+            repository.createPlaylist(name.trim())
         }
     }
 
@@ -1026,8 +1049,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---------------- PREMIUM LOCAL METADATA / ID3 OVERRIDES ----------------
     fun saveSongOverride(songId: String, title: String, artist: String, album: String) {
+        val checks = listOf(
+            InputValidator.validateMetadataField(title, "Title", required = true),
+            InputValidator.validateMetadataField(artist, "Artist", required = false),
+            InputValidator.validateMetadataField(album, "Album", required = false)
+        )
+        val firstInvalid = checks.filterIsInstance<InputValidator.ValidationResult.Invalid>().firstOrNull()
+        if (firstInvalid != null) {
+            showRejectionToast(firstInvalid.reason)
+            return
+        }
         viewModelScope.launch {
-            repository.saveSongOverride(songId, title, artist, album)
+            repository.saveSongOverride(songId, title.trim(), artist.trim(), album.trim())
         }
     }
 
@@ -1080,6 +1113,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun exportPlaylistToM3U(playlistId: Long, playlistName: String) {
+        val nameCheck = InputValidator.validatePlaylistName(playlistName)
+        if (nameCheck is InputValidator.ValidationResult.Invalid) {
+            showRejectionToast(nameCheck.reason)
+            return
+        }
         viewModelScope.launch {
             try {
                 val songs = repository.getPlaylistSongs(playlistId).first()
@@ -1087,7 +1125,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 if (!dir.exists()) {
                     dir.mkdirs()
                 }
-                val m3uFile = File(dir, "${playlistName.replace("[\\\\/:*?\"<>|]".toRegex(), "_")}.m3u")
+                val m3uFile = File(dir, "${playlistName.trim()}.m3u")
                 withContext(Dispatchers.IO) {
                     m3uFile.bufferedWriter().use { writer ->
                         writer.write("#EXTM3U\n")
@@ -1182,7 +1220,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         
                         if (matchingSong != null) {
                             repository.addSongToPlaylist(playlistId, matchingSong)
-                        } else {
+                        } else if (InputValidator.validateImportedMediaPath(path) is InputValidator.ValidationResult.Valid) {
                             val fileName = File(path).nameWithoutExtension
                             val fallbackSong = Song(
                                 id = path.hashCode().toString(),
@@ -1194,6 +1232,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                 isLocal = true
                             )
                             repository.addSongToPlaylist(playlistId, fallbackSong)
+                        } else {
+                            AppLogger.w("MusicViewModel", "Rejected malformed media path during M3U import: entry skipped")
                         }
                         currentTitle = ""
                         currentArtist = ""

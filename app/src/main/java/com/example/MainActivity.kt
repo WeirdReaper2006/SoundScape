@@ -64,6 +64,7 @@ import com.example.data.models.Song
 import androidx.media3.common.Player
 import com.example.ui.theme.SoundScapeTheme
 import com.example.ui.viewmodel.MusicViewModel
+import com.example.util.InputValidator
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -2799,7 +2800,7 @@ fun CreatePlaylistDialog(
                     Button(
                         onClick = { onConfirm(textValue) },
                         colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-                        enabled = textValue.isNotBlank()
+                        enabled = InputValidator.validatePlaylistName(textValue) is InputValidator.ValidationResult.Valid
                     ) {
                         Text(text = "Create", color = Color.Black)
                     }
@@ -2835,9 +2836,9 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
     }
     
     val isFormValid = remember(nameInput, pathType, customPathInput) {
-        val nameOk = nameInput.trim().length >= 2 && nameInput.all { it.isLetterOrDigit() || it == ' ' || it == '-' || it == '_' }
+        val nameOk = InputValidator.validateName(nameInput) is InputValidator.ValidationResult.Valid
         val pathOk = if (pathType == "Custom Folder") {
-            customPathInput.trim().isNotEmpty()
+            InputValidator.validateFolderSuffix(customPathInput) is InputValidator.ValidationResult.Valid
         } else {
             true
         }
@@ -2889,13 +2890,7 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
                 value = nameInput,
                 onValueChange = {
                     nameInput = it
-                    if (it.trim().length < 2) {
-                        nameError = "Name must be at least 2 characters."
-                    } else if (!it.all { char -> char.isLetterOrDigit() || char == ' ' || char == '-' || char == '_' }) {
-                        nameError = "Only alphanumeric, space, hyphens, underscores are allowed."
-                    } else {
-                        nameError = null
-                    }
+                    nameError = (InputValidator.validateName(it) as? InputValidator.ValidationResult.Invalid)?.reason
                 },
                 label = { Text("What should we call you?") },
                 placeholder = { Text("Enter listener name") },
@@ -2981,13 +2976,7 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
                     value = customPathInput,
                     onValueChange = {
                         customPathInput = it
-                        if (it.trim().isEmpty()) {
-                            pathError = "Custom folder suffix cannot be empty."
-                        } else if (!it.all { char -> char.isLetterOrDigit() || char == '_' || char == '-' }) {
-                            pathError = "Alphabetic and digit folder suffixes only (no path traversal /)."
-                        } else {
-                            pathError = null
-                        }
+                        pathError = (InputValidator.validateFolderSuffix(it) as? InputValidator.ValidationResult.Invalid)?.reason
                     },
                     label = { Text("Folder Name Suffix to Match") },
                     placeholder = { Text("e.g. Beats, CustomMusic, Folk") },
@@ -3219,9 +3208,9 @@ fun ProfileSettingsScreen(
     }
     
     val isFormValid = remember(newName, pathType, customPathInput) {
-        val nameOk = newName.trim().length >= 2 && newName.all { it.isLetterOrDigit() || it == ' ' || it == '-' || it == '_' }
+        val nameOk = InputValidator.validateName(newName) is InputValidator.ValidationResult.Valid
         val pathOk = if (pathType == "Custom Folder") {
-            customPathInput.trim().isNotEmpty()
+            InputValidator.validateFolderSuffix(customPathInput) is InputValidator.ValidationResult.Valid
         } else {
             true
         }
@@ -3442,13 +3431,7 @@ fun ProfileSettingsScreen(
                                 value = newName,
                                 onValueChange = {
                                     newName = it
-                                    if (it.trim().length < 2) {
-                                        nameError = "Name must be at least 2 characters."
-                                    } else if (!it.all { char -> char.isLetterOrDigit() || char == ' ' || char == '-' || char == '_' }) {
-                                        nameError = "Only alphanumeric and spaces/hyphens allowed."
-                                    } else {
-                                        nameError = null
-                                    }
+                                    nameError = (InputValidator.validateName(it) as? InputValidator.ValidationResult.Invalid)?.reason
                                 },
                                 label = { Text("Profile Name", color = SpotifyTextSecondary) },
                                 isError = nameError != null,
@@ -3717,13 +3700,7 @@ fun ProfileSettingsScreen(
                                     value = customPathInput,
                                     onValueChange = {
                                         customPathInput = it
-                                        if (it.trim().isEmpty()) {
-                                            pathError = "Custom folder name suffix cannot be empty."
-                                        } else if (!it.all { char -> char.isLetterOrDigit() || char == '_' || char == '-' }) {
-                                            pathError = "Only alphanumeric, hyphens & underscores allowed."
-                                        } else {
-                                            pathError = null
-                                        }
+                                        pathError = (InputValidator.validateFolderSuffix(it) as? InputValidator.ValidationResult.Invalid)?.reason
                                     },
                                     label = { Text("Custom Folder Suffix", color = SpotifyTextSecondary) },
                                     isError = pathError != null,
@@ -4751,6 +4728,11 @@ fun EditSongTagsDialog(
     var artist by remember { mutableStateOf(song.artist) }
     var album by remember { mutableStateOf(song.album) }
 
+    val titleError = (InputValidator.validateMetadataField(title, "Title", required = true) as? InputValidator.ValidationResult.Invalid)?.reason
+    val artistError = (InputValidator.validateMetadataField(artist, "Artist", required = false) as? InputValidator.ValidationResult.Invalid)?.reason
+    val albumError = (InputValidator.validateMetadataField(album, "Album", required = false) as? InputValidator.ValidationResult.Invalid)?.reason
+    val isMetadataValid = titleError == null && artistError == null && albumError == null
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -4776,6 +4758,7 @@ fun EditSongTagsDialog(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Title", color = SpotifyTextSecondary) },
+                    isError = titleError != null,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = SpotifyMediumGray,
                         unfocusedContainerColor = SpotifyMediumGray,
@@ -4787,12 +4770,16 @@ fun EditSongTagsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                if (titleError != null) {
+                    Text(titleError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                }
                 Spacer(modifier = Modifier.height(12.dp))
 
                 TextField(
                     value = artist,
                     onValueChange = { artist = it },
                     label = { Text("Artist", color = SpotifyTextSecondary) },
+                    isError = artistError != null,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = SpotifyMediumGray,
                         unfocusedContainerColor = SpotifyMediumGray,
@@ -4804,12 +4791,16 @@ fun EditSongTagsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                if (artistError != null) {
+                    Text(artistError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                }
                 Spacer(modifier = Modifier.height(12.dp))
 
                 TextField(
                     value = album,
                     onValueChange = { album = it },
                     label = { Text("Album", color = SpotifyTextSecondary) },
+                    isError = albumError != null,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = SpotifyMediumGray,
                         unfocusedContainerColor = SpotifyMediumGray,
@@ -4821,6 +4812,9 @@ fun EditSongTagsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                if (albumError != null) {
+                    Text(albumError, color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                }
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Row(
@@ -4833,7 +4827,8 @@ fun EditSongTagsDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = { onConfirm(title, artist, album) },
-                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen)
+                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
+                        enabled = isMetadataValid
                     ) {
                         Text("Save", color = SpotifyDark, fontWeight = FontWeight.Bold)
                     }
