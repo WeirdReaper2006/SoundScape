@@ -19,3 +19,36 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# --- Moshi (reflection-based JSON parsing needs constructors/fields kept) ---
+-keepclasseswithmembers class * {
+    @com.squareup.moshi.* <methods>;
+}
+-keep @com.squareup.moshi.JsonQualifier interface *
+-keepclassmembers class * {
+    @com.squareup.moshi.FromJson <methods>;
+    @com.squareup.moshi.ToJson <methods>;
+}
+-keep,allowobfuscation,allowshrinking interface com.squareup.moshi.JsonAdapter
+-keep,allowobfuscation,allowshrinking class kotlin.Metadata
+-keepclassmembers class com.example.data.models.** {
+    <fields>;
+    <init>(...);
+}
+
+# --- Retrofit / OkHttp ---
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn retrofit2.**
+-keepattributes Signature, InnerClasses, EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+
+# --- Room (entities/DAOs are referenced via generated code that R8 already keeps,
+# but keep entity fields since they're read/written via reflection in some paths) ---
+-keep class com.example.data.db.** { *; }
+
+# --- Media3 / ExoPlayer ---
+-dontwarn androidx.media3.**
