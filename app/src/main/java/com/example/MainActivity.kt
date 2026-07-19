@@ -1,6 +1,7 @@
 package com.example
 
 import android.Manifest
+import com.example.BuildConfig
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -3405,7 +3406,7 @@ fun ProfileSettingsScreen(
                     when (activeSubPage) {
                         "account" -> {
                             Text(
-                                text = "SoundScape v1.4",
+                                text = "SoundScape v${BuildConfig.VERSION_NAME}",
                                 color = SpotifyGreen,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -4007,7 +4008,7 @@ fun ProfileSettingsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("Version", color = ThemeWhite, fontSize = 14.sp)
-                                Text("SoundScape v1.4", color = SpotifyTextSecondary, fontSize = 14.sp)
+                                Text("SoundScape v${BuildConfig.VERSION_NAME}", color = SpotifyTextSecondary, fontSize = 14.sp)
                             }
                             
                             // Player Release
