@@ -2998,7 +2998,7 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
                     }
                     onComplete(finalName, finalPath)
                 },
-                enabled = true,
+                enabled = isFormValid,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SpotifyGreen,
                     disabledContainerColor = SpotifyLightGray
