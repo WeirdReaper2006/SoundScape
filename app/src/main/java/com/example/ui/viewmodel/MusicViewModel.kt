@@ -484,8 +484,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         // Batch updates to UI to prevent stuttering
                         if (hasAnyUpdates && (index % 5 == 0 || index == songs.lastIndex)) {
                             withContext(Dispatchers.Main) {
-                                val currentList = updatedSongs.toList()
-                                allSongs = sortSongsList(currentList, activeSortCriteria, activeSortOrder)
+                                // Merge only the newly-discovered genres into the *current* allSongs
+                                // instead of replacing it with this job's own stale snapshot, so a
+                                // concurrent tag edit or library refresh isn't silently reverted.
+                                val newGenres = updatedSongs.subList(0, index + 1)
+                                    .filter { it.genre != null }
+                                    .associateBy { it.id }
+                                val merged = allSongs.map { existing ->
+                                    newGenres[existing.id]?.let { scanned ->
+                                        if (existing.genre == null) existing.copy(genre = scanned.genre) else existing
+                                    } ?: existing
+                                }
+                                allSongs = sortSongsList(merged, activeSortCriteria, activeSortOrder)
                                 searchResults = allSongs
                             }
                         }
