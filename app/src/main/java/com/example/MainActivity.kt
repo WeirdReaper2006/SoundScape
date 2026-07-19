@@ -175,7 +175,7 @@ fun SoundScapeArtwork(
                 title.trim().take(1).uppercase()
             }
             Text(
-                text = if (firstLetter.all { it.isLetterOrDigit() }) firstLetter else "🎵",
+                text = if (firstLetter.isNotEmpty() && firstLetter.all { it.isLetterOrDigit() }) firstLetter else "🎵",
                 color = Color.White.copy(alpha = 0.9f),
                 fontWeight = FontWeight.Bold,
                 fontSize = (modifier.toString().hashCode().let { 16.sp }), // safe default font size
