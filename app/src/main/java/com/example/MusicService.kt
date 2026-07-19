@@ -286,7 +286,13 @@ class MusicService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
-        if (player == null || !player.playWhenReady || player.mediaItemCount == 0 || player.playbackState == Player.STATE_IDLE) {
+        // playWhenReady alone reflects whether the user wants playback to continue. Also
+        // requiring mediaItemCount > 0 / a non-IDLE state was racy: MediaController commands
+        // (addMediaItem/prepare/play sent from playSong()) are dispatched to this service
+        // asynchronously, so a queue started immediately before a task swipe could still show
+        // mediaItemCount == 0 or STATE_IDLE here even though playback was genuinely requested,
+        // causing playback to be killed instead of continuing in the background.
+        if (player == null || !player.playWhenReady) {
             stopSelf()
         }
         super.onTaskRemoved(rootIntent)
