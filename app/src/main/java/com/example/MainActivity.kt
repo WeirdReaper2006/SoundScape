@@ -905,6 +905,51 @@ fun HomeScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
+
+                                var showQuickPlayMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(
+                                        onClick = { showQuickPlayMenu = true },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More song options",
+                                            tint = SpotifyTextSecondary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showQuickPlayMenu,
+                                        onDismissRequest = { showQuickPlayMenu = false },
+                                        modifier = Modifier.background(SpotifyDark)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Add to Queue", color = ThemeWhite) },
+                                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, tint = SpotifyGreen, modifier = Modifier.size(20.dp)) },
+                                            onClick = {
+                                                viewModel.addToQueue(song)
+                                                showQuickPlayMenu = false
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Add to Playlist", color = ThemeWhite) },
+                                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
+                                            onClick = {
+                                                viewModel.showAddToPlaylistDialog = song
+                                                showQuickPlayMenu = false
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Edit Metadata", color = ThemeWhite) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
+                                            onClick = {
+                                                viewModel.showEditTagsDialog = song
+                                                showQuickPlayMenu = false
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                         if (rowItems.size < 2) {
@@ -1949,48 +1994,16 @@ fun PlaylistDetailScreen(
                     }
                 } else {
                     items(sortedSongs) { song ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { viewModel.playSong(song, sortedSongs) }
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                                SoundScapeArtwork(
-                                    song = song,
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = song.title,
-                                        color = ThemeWhite,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = song.artist,
-                                        color = SpotifyTextSecondary,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            if (playlistId != null) {
-                                IconButton(onClick = { viewModel.removeSongFromPlaylist(playlistId, song.id) }) {
-                                    Icon(Icons.Default.PlaylistRemove, contentDescription = "Remove", tint = SpotifyTextSecondary)
-                                }
-                            }
-                        }
+                        SongItemRow(
+                            song = song,
+                            onClick = { viewModel.playSong(song, sortedSongs) },
+                            onAddToPlaylist = { viewModel.showAddToPlaylistDialog = song },
+                            onAddToQueue = { viewModel.addToQueue(song) },
+                            onEditTags = { viewModel.showEditTagsDialog = song },
+                            onRemoveFromPlaylist = if (playlistId != null) {
+                                { viewModel.removeSongFromPlaylist(playlistId, song.id) }
+                            } else null
+                        )
                     }
                 }
 
@@ -2011,6 +2024,7 @@ fun SongItemRow(
     onAddToPlaylist: () -> Unit,
     onAddToQueue: () -> Unit,
     onEditTags: () -> Unit,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
     useCardStyle: Boolean = true
 ) {
     val durationText = remember(song.durationMs) {
@@ -2104,6 +2118,16 @@ fun SongItemRow(
                             showMenu = false
                         }
                     )
+                    if (onRemoveFromPlaylist != null) {
+                        DropdownMenuItem(
+                            text = { Text("Remove from Playlist", color = ThemeWhite) },
+                            leadingIcon = { Icon(Icons.Default.PlaylistRemove, contentDescription = null, tint = ThemeWhite, modifier = Modifier.size(20.dp)) },
+                            onClick = {
+                                onRemoveFromPlaylist()
+                                showMenu = false
+                            }
+                        )
+                    }
                 }
             }
         }
