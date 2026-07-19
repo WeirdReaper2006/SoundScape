@@ -120,7 +120,7 @@ interface MusicDao {
         RecentPlayEntity::class
     ],
     version = 2,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun musicDao(): MusicDao
@@ -131,15 +131,17 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "music_database"
                 )
-                .fallbackToDestructiveMigration()
+                // Only the pre-existing, un-migrated 1 -> 2 jump is allowed to wipe data.
+                // Any future version bump without a real Migration now fails loudly
+                // during development instead of silently deleting user data.
+                .fallbackToDestructiveMigrationFrom(1)
                 .build()
-                INSTANCE = instance
-                instance
+                    .also { INSTANCE = it }
             }
         }
     }
