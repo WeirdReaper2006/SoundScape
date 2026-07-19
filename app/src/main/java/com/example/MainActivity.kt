@@ -4476,7 +4476,7 @@ fun QueueOverlay(
                                     Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down", tint = ThemeWhite, modifier = Modifier.size(16.dp))
                                 }
                             }
-                            IconButton(onClick = { viewModel.removeFromQueue(song.id) }) {
+                            IconButton(onClick = { viewModel.removeFromQueueAt(realIndex) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove from Queue", tint = SpotifyTextSecondary)
                             }
                         }

@@ -344,16 +344,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val activeItem = controller.currentMediaItem
             if (activeItem != null) {
                 val activeId = activeItem.mediaId
-                val idx = currentQueue.indexOfFirst { it.id == activeId }
+                // Use the controller's own timeline position rather than an id lookup: with
+                // duplicate songs in the queue, an id-based search always resolves to the
+                // first matching entry even when a later duplicate is the one actually playing.
+                val idx = controller.currentMediaItemIndex
                 currentQueueIndex = idx
-                currentPlayingSong = currentQueue.find { it.id == activeId }
+                currentPlayingSong = currentQueue.getOrNull(idx)?.takeIf { it.id == activeId }
+                    ?: currentQueue.find { it.id == activeId }
                     ?: allSongs.find { it.id == activeId }
                     ?: Song(
                         id = activeItem.mediaId,
                         title = activeItem.mediaMetadata.title?.toString() ?: "Unnamed Track",
                         artist = activeItem.mediaMetadata.artist?.toString() ?: "Unknown artist",
                         album = activeItem.mediaMetadata.albumTitle?.toString() ?: "Unknown Album",
-                        path = activeItem.mediaMetadata.artworkUri?.toString() ?: "", // Backing
+                        path = "",
                         durationMs = controller.duration.coerceAtLeast(0L),
                         albumArtUri = activeItem.mediaMetadata.artworkUri?.toString(),
                         isLocal = false
@@ -777,25 +781,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun removeFromQueue(songId: String) {
-        val index = currentQueue.indexOfFirst { it.id == songId }
-        if (index != -1) {
-            val updated = currentQueue.toMutableList()
-            updated.removeAt(index)
-            currentQueue = updated
-            
+    fun removeFromQueueAt(index: Int) {
+        if (index !in currentQueue.indices) return
+        val songId = currentQueue[index].id
+        val updated = currentQueue.toMutableList()
+        updated.removeAt(index)
+        currentQueue = updated
+
+        // Only drop the song from originalQueue if no other instance remains in currentQueue,
+        // since the same song can legitimately appear more than once in the queue.
+        if (updated.none { it.id == songId }) {
             val origUpdated = originalQueue.toMutableList().apply { removeAll { it.id == songId } }
             originalQueue = origUpdated
-            
-            mediaController?.let { controller ->
-                try {
-                    controller.removeMediaItem(index)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-            android.widget.Toast.makeText(getApplication(), "Removed from queue", android.widget.Toast.LENGTH_SHORT).show()
         }
+
+        mediaController?.let { controller ->
+            try {
+                controller.removeMediaItem(index)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        android.widget.Toast.makeText(getApplication(), "Removed from queue", android.widget.Toast.LENGTH_SHORT).show()
     }
 
     fun reorderQueue(fromIndex: Int, toIndex: Int) {
