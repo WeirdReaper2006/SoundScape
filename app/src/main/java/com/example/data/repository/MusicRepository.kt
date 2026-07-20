@@ -18,16 +18,22 @@ import kotlinx.coroutines.withContext
 private const val TAG = "MusicRepository"
 
 /**
- * True if [path] is within [folder] (exact match or a subfolder), rather than merely containing
- * [folder] as a substring anywhere - e.g. folder "/Music" must not match "/MyMusicArchive/song.mp3".
- * An empty/blank [folder] matches everything (no scan-location filter selected).
+ * True if [folder] appears in [path] as a whole path segment (or run of segments) at a segment
+ * boundary, rather than merely as a substring anywhere - e.g. folder "Music" must not match
+ * "/storage/emulated/0/MyMusicArchive/song.mp3". [folder] is a scan-location suffix as stored by
+ * the folder picker (e.g. "Music" or a nested "Music/Rock"), NOT a full filesystem path, so it is
+ * matched anywhere within [path] rather than anchored to the filesystem root - this also makes
+ * subfolders of subfolders match correctly regardless of nesting depth. An empty/blank [folder]
+ * matches everything (no scan-location filter selected).
  */
 internal fun pathMatchesFolder(path: String, folder: String): Boolean {
-    if (folder.isBlank()) return true
-    val normalizedFolder = folder.trim().trimEnd('/')
+    val normalizedFolder = folder.trim().trim('/')
+    if (normalizedFolder.isBlank()) return true
     val normalizedPath = path.trim()
     return normalizedPath.equals(normalizedFolder, ignoreCase = true) ||
-        normalizedPath.startsWith("$normalizedFolder/", ignoreCase = true)
+        normalizedPath.contains("/$normalizedFolder/", ignoreCase = true) ||
+        normalizedPath.startsWith("$normalizedFolder/", ignoreCase = true) ||
+        normalizedPath.endsWith("/$normalizedFolder", ignoreCase = true)
 }
 
 class MusicRepository(
