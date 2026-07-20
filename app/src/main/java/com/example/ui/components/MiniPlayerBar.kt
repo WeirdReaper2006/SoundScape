@@ -84,66 +84,108 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+@Composable
+fun MiniPlayerBar(
+    song: Song,
+    isPlaying: Boolean,
+    positionMs: Long,
+    durationMs: Long,
+    onPlayPauseToggle: () -> Unit,
+    onSkipNext: () -> Unit,
+    onBarClick: () -> Unit
+) {
+    val progress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
 
-val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
-val SpotifyBlack: Color @Composable get() = MaterialTheme.colorScheme.background
-val SpotifyDark: Color @Composable get() = if (MaterialTheme.colorScheme.background.red + MaterialTheme.colorScheme.background.green + MaterialTheme.colorScheme.background.blue > 1.5f) Color(0xFFE9ECEF) else MaterialTheme.colorScheme.background
-val SpotifyMediumGray: Color @Composable get() = MaterialTheme.colorScheme.surface
-val SpotifyLightGray: Color @Composable get() = MaterialTheme.colorScheme.tertiary
-val SpotifyTextSecondary: Color @Composable get() = MaterialTheme.colorScheme.secondary
-val ThemeWhite: Color @Composable get() = MaterialTheme.colorScheme.onBackground
-
-class MainActivity : ComponentActivity() {
-    @OptIn(ExperimentalPermissionsApi::class)
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        PrefsKeys.migrateLegacyPrefsIfNeeded(this)
-        enableEdgeToEdge()
-        setContent {
-            val viewModel: MusicViewModel = viewModel()
-            SoundScapeTheme(
-                themePreset = viewModel.themePreset,
-                isDark = viewModel.themeIsDark,
-                customColorHex = viewModel.themeCustomColor
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(SpotifyMediumGray)
+            .clickable { onBarClick() }
+            .testTag("mini_player_bar")
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
-                val context = LocalContext.current
+                SoundScapeArtwork(
+                    song = song,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(SpotifyLightGray)
+                )
 
-                // Request Storage and Notification Permissions
-                val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    listOf(
-                        Manifest.permission.READ_MEDIA_AUDIO,
-                        Manifest.permission.POST_NOTIFICATIONS
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column {
+                    Text(
+                        text = song.title,
+                        color = ThemeWhite,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                } else {
-                    listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    Text(
+                        text = song.artist,
+                        color = SpotifyTextSecondary,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
+            }
 
-                val permissionState = rememberMultiplePermissionsState(permissions = permissionsToRequest) { results ->
-                    viewModel.refreshLibrary()
-                }
-
-                LaunchedEffect(Unit) {
-                    if (!permissionState.allPermissionsGranted) {
-                        permissionState.launchMultiplePermissionRequest()
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onPlayPauseToggle,
+                    modifier = Modifier.testTag("mini_play_pause")
                 ) {
-                    if (viewModel.isOnboardingCompleted) {
-                        SpotifyScaffold(viewModel)
-                    } else {
-                        OnboardingScreen(
-                            onComplete = { name, path ->
-                                viewModel.updateProfile(name, path)
-                            }
-                        )
-                    }
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = "Play or pause",
+                        tint = ThemeWhite,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = onSkipNext,
+                    modifier = Modifier.testTag("mini_skip_next")
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.SkipNext,
+                        contentDescription = "Next song",
+                        tint = ThemeWhite,
+                        modifier = Modifier.size(28.dp)
+                    )
                 }
             }
         }
+
+        // Mini track slider line
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp),
+            color = SpotifyGreen,
+            trackColor = ThemeWhite.copy(alpha = 0.2f)
+        )
     }
 }
+@Composable
+fun AlbumFormatPill(path: String, mimeType: String?) {
+    // Deprecated per user request: file types are hidden under song details
+}
 
+// ---------------- HOME TAB SCREEN ----------------

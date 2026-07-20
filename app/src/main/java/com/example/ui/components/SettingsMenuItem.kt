@@ -84,66 +84,54 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
-
-val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
-val SpotifyBlack: Color @Composable get() = MaterialTheme.colorScheme.background
-val SpotifyDark: Color @Composable get() = if (MaterialTheme.colorScheme.background.red + MaterialTheme.colorScheme.background.green + MaterialTheme.colorScheme.background.blue > 1.5f) Color(0xFFE9ECEF) else MaterialTheme.colorScheme.background
-val SpotifyMediumGray: Color @Composable get() = MaterialTheme.colorScheme.surface
-val SpotifyLightGray: Color @Composable get() = MaterialTheme.colorScheme.tertiary
-val SpotifyTextSecondary: Color @Composable get() = MaterialTheme.colorScheme.secondary
-val ThemeWhite: Color @Composable get() = MaterialTheme.colorScheme.onBackground
-
-class MainActivity : ComponentActivity() {
-    @OptIn(ExperimentalPermissionsApi::class)
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        PrefsKeys.migrateLegacyPrefsIfNeeded(this)
-        enableEdgeToEdge()
-        setContent {
-            val viewModel: MusicViewModel = viewModel()
-            SoundScapeTheme(
-                themePreset = viewModel.themePreset,
-                isDark = viewModel.themeIsDark,
-                customColorHex = viewModel.themeCustomColor
-            ) {
-                val context = LocalContext.current
-
-                // Request Storage and Notification Permissions
-                val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    listOf(
-                        Manifest.permission.READ_MEDIA_AUDIO,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    )
-                } else {
-                    listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-                }
-
-                val permissionState = rememberMultiplePermissionsState(permissions = permissionsToRequest) { results ->
-                    viewModel.refreshLibrary()
-                }
-
-                LaunchedEffect(Unit) {
-                    if (!permissionState.allPermissionsGranted) {
-                        permissionState.launchMultiplePermissionRequest()
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    if (viewModel.isOnboardingCompleted) {
-                        SpotifyScaffold(viewModel)
-                    } else {
-                        OnboardingScreen(
-                            onComplete = { name, path ->
-                                viewModel.updateProfile(name, path)
-                            }
-                        )
-                    }
-                }
-            }
+@Composable
+fun SettingsMenuItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SpotifyMediumGray)
+            .border(
+                width = 1.dp,
+                color = SpotifyLightGray.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable { onClick() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = SpotifyGreen,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = ThemeWhite,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = subtitle,
+                color = SpotifyTextSecondary,
+                fontSize = 12.sp
+            )
         }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+            contentDescription = null,
+            tint = SpotifyTextSecondary,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 
+// ---------------- LEFT SIDEBAR DRAWER COMPOSABLE ----------------

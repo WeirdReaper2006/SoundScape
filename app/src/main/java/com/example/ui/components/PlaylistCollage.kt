@@ -84,66 +84,66 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
-
-val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
-val SpotifyBlack: Color @Composable get() = MaterialTheme.colorScheme.background
-val SpotifyDark: Color @Composable get() = if (MaterialTheme.colorScheme.background.red + MaterialTheme.colorScheme.background.green + MaterialTheme.colorScheme.background.blue > 1.5f) Color(0xFFE9ECEF) else MaterialTheme.colorScheme.background
-val SpotifyMediumGray: Color @Composable get() = MaterialTheme.colorScheme.surface
-val SpotifyLightGray: Color @Composable get() = MaterialTheme.colorScheme.tertiary
-val SpotifyTextSecondary: Color @Composable get() = MaterialTheme.colorScheme.secondary
-val ThemeWhite: Color @Composable get() = MaterialTheme.colorScheme.onBackground
-
-class MainActivity : ComponentActivity() {
-    @OptIn(ExperimentalPermissionsApi::class)
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        PrefsKeys.migrateLegacyPrefsIfNeeded(this)
-        enableEdgeToEdge()
-        setContent {
-            val viewModel: MusicViewModel = viewModel()
-            SoundScapeTheme(
-                themePreset = viewModel.themePreset,
-                isDark = viewModel.themeIsDark,
-                customColorHex = viewModel.themeCustomColor
-            ) {
-                val context = LocalContext.current
-
-                // Request Storage and Notification Permissions
-                val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    listOf(
-                        Manifest.permission.READ_MEDIA_AUDIO,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    )
-                } else {
-                    listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-                }
-
-                val permissionState = rememberMultiplePermissionsState(permissions = permissionsToRequest) { results ->
-                    viewModel.refreshLibrary()
-                }
-
-                LaunchedEffect(Unit) {
-                    if (!permissionState.allPermissionsGranted) {
-                        permissionState.launchMultiplePermissionRequest()
+@Composable
+fun PlaylistCollage(
+    songs: List<Song>,
+    modifier: Modifier = Modifier,
+    isLikedSongs: Boolean = false,
+    isFolderSongs: Boolean = false
+) {
+    if (songs.size >= 4) {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .aspectRatio(1f)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SoundScapeArtwork(song = songs[0], modifier = Modifier.fillMaxSize())
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SoundScapeArtwork(song = songs[1], modifier = Modifier.fillMaxSize())
                     }
                 }
-
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    if (viewModel.isOnboardingCompleted) {
-                        SpotifyScaffold(viewModel)
-                    } else {
-                        OnboardingScreen(
-                            onComplete = { name, path ->
-                                viewModel.updateProfile(name, path)
-                            }
-                        )
+                Row(modifier = Modifier.weight(1f)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SoundScapeArtwork(song = songs[2], modifier = Modifier.fillMaxSize())
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        SoundScapeArtwork(song = songs[3], modifier = Modifier.fillMaxSize())
                     }
                 }
+            }
+        }
+    } else if (songs.isNotEmpty()) {
+        SoundScapeArtwork(
+            song = songs[0],
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .aspectRatio(1f)
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    brush = when {
+                        isLikedSongs -> Brush.linearGradient(listOf(Color(0xFF4F2FE3), Color(0xFF8097E4)))
+                        isFolderSongs -> Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)))
+                        else -> Brush.verticalGradient(listOf(SpotifyMediumGray, SpotifyBlack))
+                    }
+                )
+                .aspectRatio(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            when {
+                isLikedSongs -> Icon(Icons.Filled.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                isFolderSongs -> Icon(Icons.Filled.Folder, contentDescription = null, tint = Color.Black, modifier = Modifier.size(28.dp))
+                else -> Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
             }
         }
     }
 }
 
+// ---------------- PLAYLIST DETAIL VIEW ----------------

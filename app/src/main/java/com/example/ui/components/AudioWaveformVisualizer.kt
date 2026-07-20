@@ -84,66 +84,63 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+@Composable
+fun AudioWaveformVisualizer(
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "waveform_anim")
+    val barCount = 20
+    
+    val waveHeights = (0 until barCount).map { index ->
+        if (isPlaying) {
+            val duration = remember(index) { (500 + (index % 5) * 150) }
+            val delayValue = remember(index) { (index % 4) * 100 }
+            infiniteTransition.animateFloat(
+                initialValue = 0.15f,
+                targetValue = 0.85f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = duration, delayMillis = delayValue, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "bar_$index"
+            )
+        } else {
+            remember { mutableStateOf(0.12f) }
+        }
+    }
 
-val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
-val SpotifyBlack: Color @Composable get() = MaterialTheme.colorScheme.background
-val SpotifyDark: Color @Composable get() = if (MaterialTheme.colorScheme.background.red + MaterialTheme.colorScheme.background.green + MaterialTheme.colorScheme.background.blue > 1.5f) Color(0xFFE9ECEF) else MaterialTheme.colorScheme.background
-val SpotifyMediumGray: Color @Composable get() = MaterialTheme.colorScheme.surface
-val SpotifyLightGray: Color @Composable get() = MaterialTheme.colorScheme.tertiary
-val SpotifyTextSecondary: Color @Composable get() = MaterialTheme.colorScheme.secondary
-val ThemeWhite: Color @Composable get() = MaterialTheme.colorScheme.onBackground
-
-class MainActivity : ComponentActivity() {
-    @OptIn(ExperimentalPermissionsApi::class)
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        PrefsKeys.migrateLegacyPrefsIfNeeded(this)
-        enableEdgeToEdge()
-        setContent {
-            val viewModel: MusicViewModel = viewModel()
-            SoundScapeTheme(
-                themePreset = viewModel.themePreset,
-                isDark = viewModel.themeIsDark,
-                customColorHex = viewModel.themeCustomColor
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
             ) {
-                val context = LocalContext.current
-
-                // Request Storage and Notification Permissions
-                val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    listOf(
-                        Manifest.permission.READ_MEDIA_AUDIO,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    )
-                } else {
-                    listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-                }
-
-                val permissionState = rememberMultiplePermissionsState(permissions = permissionsToRequest) { results ->
-                    viewModel.refreshLibrary()
-                }
-
-                LaunchedEffect(Unit) {
-                    if (!permissionState.allPermissionsGranted) {
-                        permissionState.launchMultiplePermissionRequest()
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    if (viewModel.isOnboardingCompleted) {
-                        SpotifyScaffold(viewModel)
-                    } else {
-                        OnboardingScreen(
-                            onComplete = { name, path ->
-                                viewModel.updateProfile(name, path)
-                            }
+                // No-op to consume touch gestures and prevent fall-through / click propagation to the Slider scrub bar underneath it
+            },
+        horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        waveHeights.forEach { heightState ->
+            val barHeight = 28.dp * heightState.value
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(barHeight)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                SpotifyGreen,
+                                SpotifyGreen.copy(alpha = 0.35f)
+                            )
                         )
-                    }
-                }
-            }
+                    )
+            )
         }
     }
 }
 
+// ---------------- DETAILED PLAYER SCREEN ----------------

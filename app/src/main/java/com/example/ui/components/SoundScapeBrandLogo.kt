@@ -84,66 +84,26 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
-
-val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
-val SpotifyBlack: Color @Composable get() = MaterialTheme.colorScheme.background
-val SpotifyDark: Color @Composable get() = if (MaterialTheme.colorScheme.background.red + MaterialTheme.colorScheme.background.green + MaterialTheme.colorScheme.background.blue > 1.5f) Color(0xFFE9ECEF) else MaterialTheme.colorScheme.background
-val SpotifyMediumGray: Color @Composable get() = MaterialTheme.colorScheme.surface
-val SpotifyLightGray: Color @Composable get() = MaterialTheme.colorScheme.tertiary
-val SpotifyTextSecondary: Color @Composable get() = MaterialTheme.colorScheme.secondary
-val ThemeWhite: Color @Composable get() = MaterialTheme.colorScheme.onBackground
-
-class MainActivity : ComponentActivity() {
-    @OptIn(ExperimentalPermissionsApi::class)
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        PrefsKeys.migrateLegacyPrefsIfNeeded(this)
-        enableEdgeToEdge()
-        setContent {
-            val viewModel: MusicViewModel = viewModel()
-            SoundScapeTheme(
-                themePreset = viewModel.themePreset,
-                isDark = viewModel.themeIsDark,
-                customColorHex = viewModel.themeCustomColor
-            ) {
-                val context = LocalContext.current
-
-                // Request Storage and Notification Permissions
-                val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    listOf(
-                        Manifest.permission.READ_MEDIA_AUDIO,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    )
-                } else {
-                    listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-                }
-
-                val permissionState = rememberMultiplePermissionsState(permissions = permissionsToRequest) { results ->
-                    viewModel.refreshLibrary()
-                }
-
-                LaunchedEffect(Unit) {
-                    if (!permissionState.allPermissionsGranted) {
-                        permissionState.launchMultiplePermissionRequest()
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    if (viewModel.isOnboardingCompleted) {
-                        SpotifyScaffold(viewModel)
-                    } else {
-                        OnboardingScreen(
-                            onComplete = { name, path ->
-                                viewModel.updateProfile(name, path)
-                            }
-                        )
-                    }
-                }
-            }
-        }
+@Composable
+fun SoundScapeBrandLogo(modifier: Modifier) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFF1DB954), Color(0xFF00E5FF))
+                )
+            )
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.GraphicEq,
+            contentDescription = null,
+            tint = Color.Black,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
+// ---------------- PREMIUM COMPOSABLE: EQUALIZER DIALOG ----------------
