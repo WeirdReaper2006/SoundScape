@@ -1,7 +1,8 @@
 package com.example
 
 import android.Manifest
-import com.example.BuildConfig
+import com.soundscape.BuildConfig
+import com.soundscape.R
 import android.content.Context
 import android.content.Intent
 import android.os.Build
