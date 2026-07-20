@@ -68,6 +68,17 @@ ksp {
   arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// Robolectric's SDK 36 shadow requires running on Java 21, even though the app itself
+// compiles against Java 17 (kotlin.jvmToolchain above). Pin unit test *execution* to a
+// Java 21 launcher without touching the main compile toolchain.
+tasks.withType<Test>().configureEach {
+  javaLauncher.set(
+    javaToolchains.launcherFor {
+      languageVersion.set(JavaLanguageVersion.of(21))
+    }
+  )
+}
+
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.accompanist.permissions)

@@ -34,6 +34,19 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Run unit tests
+        run: ./gradlew test --no-daemon
+
+      - name: Run lint
+        run: ./gradlew lint --no-daemon
+
+      - name: Upload lint report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-*.html
+
       # Version format is Major.Minor (no patch), derived from the latest
       # existing "vX.Y" tag. Every commit heading pushed in this run is scanned;
       # if any is a breaking change ("feat!: ..." / any "type!:") -> major bump,

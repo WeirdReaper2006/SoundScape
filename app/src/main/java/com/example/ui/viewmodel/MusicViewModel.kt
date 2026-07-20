@@ -27,6 +27,7 @@ import com.example.data.models.Song
 import com.example.data.repository.MusicRepository
 import com.example.util.AppLogger
 import com.example.util.InputValidator
+import com.example.util.PrefsKeys
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -232,7 +233,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadProfile() {
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         userName = prefs.getString("user_name", "Listener") ?: "Listener"
         musicPath = prefs.getString("music_path", "Music") ?: "Music"
         isOnboardingCompleted = prefs.getBoolean("onboarding_completed", false)
@@ -260,7 +261,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
         }
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit()
             .putString("user_name", name.trim())
             .putString("music_path", path.trim())
@@ -277,7 +278,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateTheme(preset: String, isDark: Boolean, customColorHex: String) {
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit()
             .putString("theme_preset", preset)
             .putBoolean("theme_is_dark", isDark)
@@ -412,7 +413,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSort(criteria: SortCriteria, order: SortOrder) {
         activeSortCriteria = criteria
         activeSortOrder = order
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit()
             .putString("sort_criteria", criteria.name)
             .putString("sort_order", order.name)
@@ -422,7 +423,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleLibraryLayout() {
         isLibraryGridView = !isLibraryGridView
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("library_grid_view", isLibraryGridView).apply()
     }
 
@@ -897,7 +898,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---------------- PREMIUM EQUALIZER & BASS BOOST ----------------
     fun initEqualizerSettings() {
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         eqEnabled = prefs.getBoolean("eq_enabled", false)
         bbEnabled = prefs.getBoolean("bb_enabled", false)
         bbStrength = prefs.getInt("bb_strength", 0)
@@ -911,7 +912,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getBandFrequencyLabel(index: Int): String {
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         val defaultFreqs = listOf(60, 230, 910, 3600, 14000)
         val freqHz = prefs.getInt("eq_hardware_band_freq_$index", defaultFreqs.getOrElse(index) { 1000 })
         return if (freqHz >= 1000) {
@@ -928,14 +929,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleEqualizer() {
         eqEnabled = !eqEnabled
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("eq_enabled", eqEnabled).apply()
         notifyServiceReloadEffects()
     }
 
     fun toggleBassBoost() {
         bbEnabled = !bbEnabled
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("bb_enabled", bbEnabled).apply()
         notifyServiceReloadEffects()
     }
@@ -943,7 +944,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun updateEqualizerBand(bandIndex: Int, level: Int, isManual: Boolean = false) {
         if (bandIndex in eqBands.indices) {
             eqBands[bandIndex] = level
-            val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+            val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
             if (isManual) {
                 eqActivePreset = "Custom"
                 prefs.edit().putString("eq_active_preset", "Custom").apply()
@@ -955,7 +956,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateBassBoostStrength(strength: Int) {
         bbStrength = strength
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putInt("bb_strength", strength).apply()
         notifyServiceReloadEffects()
     }
@@ -971,7 +972,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             else -> listOf(0, 0, 0, 0, 0) // Flat / Custom default
         }
         eqActivePreset = presetName
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putString("eq_active_preset", presetName).apply()
 
         // Dynamic Bass Boost integration for Bass boost preset
@@ -1005,7 +1006,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---------------- PLAYBACK SETTINGS ----------------
     fun initPlaybackSettings() {
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         gaplessPlaybackEnabled = prefs.getBoolean("gapless_playback", true)
         automixEnabled = prefs.getBoolean("automix", true)
         crossfadeDurationSec = prefs.getInt("crossfade_duration", 0)
@@ -1014,28 +1015,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleGaplessPlayback() {
         gaplessPlaybackEnabled = !gaplessPlaybackEnabled
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("gapless_playback", gaplessPlaybackEnabled).apply()
         notifyServiceReloadEffects()
     }
 
     fun toggleAutomix() {
         automixEnabled = !automixEnabled
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("automix", automixEnabled).apply()
         notifyServiceReloadEffects()
     }
 
     fun updateCrossfadeDuration(seconds: Int) {
         crossfadeDurationSec = seconds
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putInt("crossfade_duration", seconds).apply()
         notifyServiceReloadEffects()
     }
 
     fun toggleMonoAudio() {
         monoAudioEnabled = !monoAudioEnabled
-        val prefs = getApplication<Application>().getSharedPreferences("spotify_clone_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("mono_audio", monoAudioEnabled).apply()
         notifyServiceReloadEffects()
     }

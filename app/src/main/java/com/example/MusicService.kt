@@ -18,6 +18,8 @@ import androidx.media3.session.MediaSessionService
 import com.example.data.db.AppDatabase
 import com.example.data.models.Song
 import com.example.data.repository.MusicRepository
+import com.example.util.AppLogger
+import com.example.util.PrefsKeys
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -51,6 +53,7 @@ class MusicService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
+        PrefsKeys.migrateLegacyPrefsIfNeeded(this)
         repository = MusicRepository(this, AppDatabase.getDatabase(this).musicDao())
 
         val audioAttributes = AudioAttributes.Builder()
@@ -96,7 +99,7 @@ class MusicService : MediaSessionService() {
                 hasAutomixedCurrentTrack = false
                 hasRecordedCurrentTrack = false
 
-                val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+                val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
                 val gapless = prefs.getBoolean("gapless_playback", true)
                 
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !gapless) {
@@ -143,13 +146,15 @@ class MusicService : MediaSessionService() {
             
             // Save hardware bands info for UI
             equalizer?.let { eq ->
-                val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+                val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
                 val bandsCount = eq.numberOfBands.toInt()
-                prefs.edit().putInt("eq_hardware_bands_count", bandsCount).apply()
-                for (i in 0 until bandsCount) {
-                    val freqHz = eq.getCenterFreq(i.toShort()) / 1000
-                    prefs.edit().putInt("eq_hardware_band_freq_$i", freqHz).apply()
-                }
+                prefs.edit().apply {
+                    putInt("eq_hardware_bands_count", bandsCount)
+                    for (i in 0 until bandsCount) {
+                        val freqHz = eq.getCenterFreq(i.toShort()) / 1000
+                        putInt("eq_hardware_band_freq_$i", freqHz)
+                    }
+                }.apply()
             }
 
             bassBoost = android.media.audiofx.BassBoost(0, audioSessionId).apply {
@@ -157,13 +162,13 @@ class MusicService : MediaSessionService() {
             }
             reloadAudioEffects()
         } catch (e: Exception) {
-            com.example.util.AppLogger.e("MusicService", "Failed to set up audio effects", e)
+            AppLogger.e("MusicService", "Failed to set up audio effects", e)
         }
     }
 
     private fun reloadAudioEffects() {
         try {
-            val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+            val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
             val eqEnabled = prefs.getBoolean("eq_enabled", false)
             
             equalizer?.let { eq ->
@@ -186,17 +191,17 @@ class MusicService : MediaSessionService() {
                 }
             }
         } catch (e: Exception) {
-            com.example.util.AppLogger.e("MusicService", "Failed to reload audio effects", e)
+            AppLogger.e("MusicService", "Failed to reload audio effects", e)
         }
     }
 
     private fun reloadPlaybackSettings() {
         try {
-            val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+            val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
             val monoEnabled = prefs.getBoolean("mono_audio", false)
             monoAudioProcessor.monoEnabled = monoEnabled
         } catch (e: Exception) {
-            com.example.util.AppLogger.e("MusicService", "Failed to reload playback settings", e)
+            AppLogger.e("MusicService", "Failed to reload playback settings", e)
         }
     }
 
@@ -211,7 +216,7 @@ class MusicService : MediaSessionService() {
 
         maybeRecordRecentPlay(p, currentPosition, duration)
 
-        val prefs = getSharedPreferences("spotify_clone_prefs", MODE_PRIVATE)
+        val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
         val crossfadeDurationSec = prefs.getInt("crossfade_duration", 0)
         val automixEnabled = prefs.getBoolean("automix", true)
 

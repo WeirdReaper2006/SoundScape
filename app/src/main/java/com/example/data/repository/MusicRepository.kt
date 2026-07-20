@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import com.example.data.db.*
 import com.example.data.models.Song
 import com.example.util.AppLogger
+import com.example.util.PrefsKeys
 import com.example.util.UserFacingException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -15,6 +16,19 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 private const val TAG = "MusicRepository"
+
+/**
+ * True if [path] is within [folder] (exact match or a subfolder), rather than merely containing
+ * [folder] as a substring anywhere - e.g. folder "/Music" must not match "/MyMusicArchive/song.mp3".
+ * An empty/blank [folder] matches everything (no scan-location filter selected).
+ */
+internal fun pathMatchesFolder(path: String, folder: String): Boolean {
+    if (folder.isBlank()) return true
+    val normalizedFolder = folder.trim().trimEnd('/')
+    val normalizedPath = path.trim()
+    return normalizedPath.equals(normalizedFolder, ignoreCase = true) ||
+        normalizedPath.startsWith("$normalizedFolder/", ignoreCase = true)
+}
 
 class MusicRepository(
     private val context: Context,
@@ -25,7 +39,7 @@ class MusicRepository(
         val songList = mutableListOf<Song>()
         
         // Retrieve scan location filter from SharedPreferences securely
-        val prefs = context.getSharedPreferences("spotify_clone_prefs", Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences(PrefsKeys.FILE_NAME, Context.MODE_PRIVATE)
         val selectedLocation = prefs.getString("music_path", "")?.trim() ?: ""
         
         val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -90,7 +104,7 @@ class MusicRepository(
                     val dateAdded = cursor.getLong(dateAddedColumn)
 
                     // Secure backend validation of paths: Ignore if does not match selected scan folder
-                    if (selectedLocation.isNotBlank() && !path.contains(selectedLocation, ignoreCase = true)) {
+                    if (!pathMatchesFolder(path, selectedLocation)) {
                         continue
                     }
 

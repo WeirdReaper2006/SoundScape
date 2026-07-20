@@ -66,6 +66,7 @@ import androidx.media3.common.Player
 import com.example.ui.theme.SoundScapeTheme
 import com.example.ui.viewmodel.MusicViewModel
 import com.example.util.InputValidator
+import com.example.util.PrefsKeys
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -228,6 +229,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalPermissionsApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PrefsKeys.migrateLegacyPrefsIfNeeded(this)
         enableEdgeToEdge()
         setContent {
             val viewModel: MusicViewModel = viewModel()
