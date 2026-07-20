@@ -58,6 +58,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.db.PlaylistEntity
@@ -89,9 +95,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     val context = LocalContext.current
     var isExpandedPlayerVisible by remember { mutableStateOf(false) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
-    var activePlaylistForDetail by remember { mutableStateOf<PlaylistEntity?>(null) }
-    var activeVirtualPlaylistType by remember { mutableStateOf<String?>(null) } // "liked_songs" or "folder_songs"
-    
+
     var showProfileSettingsDialog by remember { mutableStateOf(false) }
     var showQueueOverlay by remember { mutableStateOf(false) }
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
@@ -99,8 +103,24 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
 
+    // Detail-style destinations (playlist detail, virtual playlists, recents) that overlay the
+    // three peer bottom tabs. The tabs themselves stay index-driven below - they're peers, not a
+    // stack, so modeling them as NavHost routes would add nothing but risk.
+    val navController = rememberNavController()
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val onNonTabsRoute = currentRoute != null && currentRoute != "tabs"
+
+    // Bridges the legacy showRecentsPage flag (still flipped by HomeScreen's "Recently Played"
+    // row) onto the nav back stack without needing to touch HomeScreen.
+    LaunchedEffect(viewModel.showRecentsPage) {
+        if (viewModel.showRecentsPage) {
+            navController.navigate("recents")
+            viewModel.showRecentsPage = false
+        }
+    }
+
     // Real-time cohesive back and navigation routing interceptor
-    BackHandler(enabled = drawerState.isOpen || isExpandedPlayerVisible || showQueueOverlay || showProfileSettingsDialog || activePlaylistForDetail != null || activeVirtualPlaylistType != null || viewModel.showRecentsPage || viewModel.activeTabIndex != 0) {
+    BackHandler(enabled = drawerState.isOpen || isExpandedPlayerVisible || showQueueOverlay || showProfileSettingsDialog || onNonTabsRoute || viewModel.activeTabIndex != 0) {
         when {
             drawerState.isOpen -> coroutineScope.launch { drawerState.close() }
             showQueueOverlay -> showQueueOverlay = false
@@ -109,9 +129,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                 showProfileSettingsDialog = false
             }
             isExpandedPlayerVisible -> isExpandedPlayerVisible = false
-            activeVirtualPlaylistType != null -> activeVirtualPlaylistType = null
-            activePlaylistForDetail != null -> activePlaylistForDetail = null
-            viewModel.showRecentsPage -> viewModel.showRecentsPage = false
+            onNonTabsRoute -> navController.popBackStack()
             viewModel.activeTabIndex != 0 -> viewModel.activeTabIndex = 0
         }
     }
@@ -165,8 +183,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                             selected = viewModel.activeTabIndex == 0,
                             onClick = {
                                 viewModel.activeTabIndex = 0
-                                activePlaylistForDetail = null
-                                activeVirtualPlaylistType = null
+                                navController.popBackStack("tabs", inclusive = false)
                                 viewModel.showRecentsPage = false
                             },
                             icon = { Icon(if (viewModel.activeTabIndex == 0) Icons.Filled.Home else Icons.Outlined.Home, contentDescription = "Home") },
@@ -183,8 +200,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                             selected = viewModel.activeTabIndex == 1,
                             onClick = {
                                 viewModel.activeTabIndex = 1
-                                activePlaylistForDetail = null
-                                activeVirtualPlaylistType = null
+                                navController.popBackStack("tabs", inclusive = false)
                                 viewModel.showRecentsPage = false
                             },
                             icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
@@ -202,8 +218,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                             selected = viewModel.activeTabIndex == 2,
                             onClick = {
                                 viewModel.activeTabIndex = 2
-                                activePlaylistForDetail = null
-                                activeVirtualPlaylistType = null
+                                navController.popBackStack("tabs", inclusive = false)
                                 viewModel.showRecentsPage = false
                             },
                             icon = { Icon(if (viewModel.activeTabIndex == 2) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic, contentDescription = "Your Library") },
@@ -231,56 +246,70 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         )
                     )
             ) {
-                if (activeVirtualPlaylistType != null) {
-                    val title = if (activeVirtualPlaylistType == "liked_songs") "Liked Songs" else {
-                        when (viewModel.musicPath) {
-                            "Music" -> "Music Folder"
-                            "Download" -> "Downloads Folder"
-                            "" -> "Entire Storage"
-                            else -> viewModel.musicPath.substringAfterLast("/")
+                NavHost(navController = navController, startDestination = "tabs") {
+                    composable("tabs") {
+                        when (viewModel.activeTabIndex) {
+                            0 -> HomeScreen(
+                                viewModel = viewModel,
+                                onPlaylistSelect = { navController.navigate("playlist_detail/${it.id}") },
+                                onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                            )
+                            1 -> SearchScreen(
+                                viewModel = viewModel,
+                                onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                            )
+                            2 -> LibraryScreen(
+                                viewModel = viewModel,
+                                onCreatePlaylistClick = { showCreatePlaylistDialog = true },
+                                onPlaylistClick = { navController.navigate("playlist_detail/${it.id}") },
+                                onVirtualPlaylistClick = { navController.navigate("virtual_playlist/$it") },
+                                onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                            )
                         }
                     }
-                    val favoriteList by viewModel.favoriteSongs.collectAsStateWithLifecycle()
-                    PlaylistDetailScreen(
-                        title = title,
-                        songs = if (activeVirtualPlaylistType == "liked_songs") favoriteList else viewModel.allSongs,
-                        viewModel = viewModel,
-                        onBack = { activeVirtualPlaylistType = null },
-                        playlistId = null,
-                        isLikedSongs = (activeVirtualPlaylistType == "liked_songs"),
-                        isFolderSongs = (activeVirtualPlaylistType == "folder_songs")
-                    )
-                } else if (activePlaylistForDetail != null) {
-                    val playlistSongs by viewModel.getPlaylistSongs(activePlaylistForDetail!!.id).collectAsStateWithLifecycle(emptyList())
-                    PlaylistDetailScreen(
-                        title = activePlaylistForDetail!!.name,
-                        songs = playlistSongs,
-                        viewModel = viewModel,
-                        onBack = { activePlaylistForDetail = null },
-                        playlistId = activePlaylistForDetail!!.id
-                    )
-                } else if (viewModel.showRecentsPage) {
-                    RecentsScreen(
-                        viewModel = viewModel,
-                        onBack = { viewModel.showRecentsPage = false }
-                    )
-                } else {
-                    when (viewModel.activeTabIndex) {
-                        0 -> HomeScreen(
+                    composable(
+                        "playlist_detail/{playlistId}",
+                        arguments = listOf(navArgument("playlistId") { type = NavType.LongType })
+                    ) { backStackEntry ->
+                        val playlistId = backStackEntry.arguments!!.getLong("playlistId")
+                        val playlist = playlists.find { it.id == playlistId }
+                        val playlistSongs by viewModel.getPlaylistSongs(playlistId).collectAsStateWithLifecycle(emptyList())
+                        PlaylistDetailScreen(
+                            title = playlist?.name ?: "",
+                            songs = playlistSongs,
                             viewModel = viewModel,
-                            onPlaylistSelect = { activePlaylistForDetail = it },
-                            onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                            onBack = { navController.popBackStack() },
+                            playlistId = playlistId
                         )
-                        1 -> SearchScreen(
+                    }
+                    composable(
+                        "virtual_playlist/{type}",
+                        arguments = listOf(navArgument("type") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val virtualPlaylistType = backStackEntry.arguments!!.getString("type")
+                        val title = if (virtualPlaylistType == "liked_songs") "Liked Songs" else {
+                            when (viewModel.musicPath) {
+                                "Music" -> "Music Folder"
+                                "Download" -> "Downloads Folder"
+                                "" -> "Entire Storage"
+                                else -> viewModel.musicPath.substringAfterLast("/")
+                            }
+                        }
+                        val favoriteList by viewModel.favoriteSongs.collectAsStateWithLifecycle()
+                        PlaylistDetailScreen(
+                            title = title,
+                            songs = if (virtualPlaylistType == "liked_songs") favoriteList else viewModel.allSongs,
                             viewModel = viewModel,
-                            onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                            onBack = { navController.popBackStack() },
+                            playlistId = null,
+                            isLikedSongs = (virtualPlaylistType == "liked_songs"),
+                            isFolderSongs = (virtualPlaylistType == "folder_songs")
                         )
-                        2 -> LibraryScreen(
+                    }
+                    composable("recents") {
+                        RecentsScreen(
                             viewModel = viewModel,
-                            onCreatePlaylistClick = { showCreatePlaylistDialog = true },
-                            onPlaylistClick = { activePlaylistForDetail = it },
-                            onVirtualPlaylistClick = { activeVirtualPlaylistType = it },
-                            onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                            onBack = { navController.popBackStack() }
                         )
                     }
                 }
