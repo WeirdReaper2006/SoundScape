@@ -2,7 +2,6 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.ComponentName
-import android.content.Intent
 import java.io.File
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
@@ -51,6 +50,10 @@ enum class SortOrder {
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppContainer.getRepository(application)
+
+    // Profile/theme, equalizer + bass boost, and playback-settings persistence live here; see
+    // SettingsController for details. MusicViewModel forwards its public surface unchanged.
+    private val settingsController = SettingsController(application, onProfileUpdated = { refreshLibrary() })
 
     // MediaController related
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -153,35 +156,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     var showEditTagsDialog by mutableStateOf<Song?>(null)
     var showImportM3UDialog by mutableStateOf(false)
 
-    // Equalizer & Bass Boost states
-    var eqEnabled by mutableStateOf(false)
-        private set
-
-    var bbEnabled by mutableStateOf(false)
-        private set
-
-    var bbStrength by mutableStateOf(0)
-        private set
+    // Equalizer & Bass Boost states (persistence in SettingsController; see below)
+    val eqEnabled: Boolean get() = settingsController.eqEnabled
+    val bbEnabled: Boolean get() = settingsController.bbEnabled
+    val bbStrength: Int get() = settingsController.bbStrength
 
     var showEqualizerDialogGlobally by mutableStateOf(false)
 
-    val eqBands = mutableStateListOf<Int>()
+    val eqBands get() = settingsController.eqBands
 
-    var eqActivePreset by mutableStateOf("Flat")
-        private set
+    val eqActivePreset: String get() = settingsController.eqActivePreset
 
-    // Playback settings states
-    var gaplessPlaybackEnabled by mutableStateOf(true)
-        private set
-
-    var automixEnabled by mutableStateOf(true)
-        private set
-
-    var crossfadeDurationSec by mutableStateOf(0)
-        private set
-
-    var monoAudioEnabled by mutableStateOf(false)
-        private set
+    // Playback settings states (persistence in SettingsController; see below)
+    val gaplessPlaybackEnabled: Boolean get() = settingsController.gaplessPlaybackEnabled
+    val automixEnabled: Boolean get() = settingsController.automixEnabled
+    val crossfadeDurationSec: Int get() = settingsController.crossfadeDurationSec
+    val monoAudioEnabled: Boolean get() = settingsController.monoAudioEnabled
 
     // Song Metadata Overrides
     var songOverrides by mutableStateOf<Map<String, com.example.data.db.SongOverrideEntity>>(emptyMap())
@@ -190,33 +180,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // M3U Playlists
     val availableM3UFiles = mutableStateListOf<File>()
 
-    // Onboarding & User Profile States
-    var userName by mutableStateOf("New Listener")
-        private set
+    // Onboarding & User Profile States (persistence in SettingsController; see below)
+    val userName: String get() = settingsController.userName
+    val musicPath: String get() = settingsController.musicPath
+    val isOnboardingCompleted: Boolean get() = settingsController.isOnboardingCompleted
 
-    var musicPath by mutableStateOf("Music")
-        private set
-
-    var isOnboardingCompleted by mutableStateOf(false)
-        private set
-
-    // Dynamic Theme Settings
-    var themePreset by mutableStateOf("green")
-        private set
-
-    var themeIsDark by mutableStateOf(true)
-        private set
-
-    var themeCustomColor by mutableStateOf("#00E5FF")
-        private set
+    // Dynamic Theme Settings (persistence in SettingsController; see below)
+    val themePreset: String get() = settingsController.themePreset
+    val themeIsDark: Boolean get() = settingsController.themeIsDark
+    val themeCustomColor: String get() = settingsController.themeCustomColor
 
     // Background progress tracker job
     private var progressTrackingJob: Job? = null
 
     init {
         loadProfile()
-        initEqualizerSettings()
-        initPlaybackSettings()
+        settingsController.initEqualizerSettings()
+        settingsController.initPlaybackSettings()
         initMediaController()
         
         // Listen to metadata overrides flow in real-time
@@ -231,14 +211,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadProfile() {
+        settingsController.loadProfile()
+
         val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        userName = prefs.getString("user_name", "Listener") ?: "Listener"
-        musicPath = prefs.getString("music_path", "Music") ?: "Music"
-        isOnboardingCompleted = prefs.getBoolean("onboarding_completed", false)
-        themePreset = prefs.getString("theme_preset", "green") ?: "green"
-        themeIsDark = prefs.getBoolean("theme_is_dark", true)
-        themeCustomColor = prefs.getString("theme_custom_color", "#00E5FF") ?: "#00E5FF"
-        
         val sortCriteriaStr = prefs.getString("sort_criteria", SortCriteria.TITLE.name) ?: SortCriteria.TITLE.name
         val sortOrderStr = prefs.getString("sort_order", SortOrder.ASCENDING.name) ?: SortOrder.ASCENDING.name
         activeSortCriteria = try { SortCriteria.valueOf(sortCriteriaStr) } catch(e: Exception) { SortCriteria.TITLE }
@@ -246,52 +221,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         isLibraryGridView = prefs.getBoolean("library_grid_view", false)
     }
 
-    fun updateProfile(name: String, path: String) {
-        val nameCheck = InputValidator.validateName(name)
-        if (nameCheck is InputValidator.ValidationResult.Invalid) {
-            showRejectionToast(nameCheck.reason)
-            return
-        }
-        if (path.isNotBlank()) {
-            val pathCheck = InputValidator.validateFolderSuffix(path)
-            if (pathCheck is InputValidator.ValidationResult.Invalid) {
-                showRejectionToast(pathCheck.reason)
-                return
-            }
-        }
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString("user_name", name.trim())
-            .putString("music_path", path.trim())
-            .putBoolean("onboarding_completed", true)
-            .apply()
-        userName = name.trim()
-        musicPath = path.trim()
-        isOnboardingCompleted = true
-        refreshLibrary()
-    }
+    fun updateProfile(name: String, path: String) = settingsController.updateProfile(name, path)
 
     private fun showRejectionToast(reason: String) {
         android.widget.Toast.makeText(getApplication(), reason, android.widget.Toast.LENGTH_SHORT).show()
     }
 
-    fun updateTheme(preset: String, isDark: Boolean, customColorHex: String) {
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString("theme_preset", preset)
-            .putBoolean("theme_is_dark", isDark)
-            .putString("theme_custom_color", customColorHex)
-            .apply()
-        themePreset = preset
-        themeIsDark = isDark
-        themeCustomColor = customColorHex
-    }
+    fun updateTheme(preset: String, isDark: Boolean, customColorHex: String) =
+        settingsController.updateTheme(preset, isDark, customColorHex)
 
-    fun previewTheme(preset: String, isDark: Boolean, customColorHex: String) {
-        themePreset = preset
-        themeIsDark = isDark
-        themeCustomColor = customColorHex
-    }
+    fun previewTheme(preset: String, isDark: Boolean, customColorHex: String) =
+        settingsController.previewTheme(preset, isDark, customColorHex)
 
     private fun initMediaController() {
         val sessionToken = SessionToken(
@@ -895,156 +835,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ---------------- PREMIUM EQUALIZER & BASS BOOST ----------------
-    fun initEqualizerSettings() {
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        eqEnabled = prefs.getBoolean("eq_enabled", false)
-        bbEnabled = prefs.getBoolean("bb_enabled", false)
-        bbStrength = prefs.getInt("bb_strength", 0)
-        eqActivePreset = prefs.getString("eq_active_preset", "Balanced") ?: "Balanced"
-        val bandsCount = prefs.getInt("eq_hardware_bands_count", 5)
-        eqBands.clear()
-        for (i in 0 until bandsCount) {
-            val level = prefs.getInt("eq_band_$i", 0)
-            eqBands.add(level)
-        }
-    }
-
-    fun getBandFrequencyLabel(index: Int): String {
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        val defaultFreqs = listOf(60, 230, 910, 3600, 14000)
-        val freqHz = prefs.getInt("eq_hardware_band_freq_$index", defaultFreqs.getOrElse(index) { 1000 })
-        return if (freqHz >= 1000) {
-            if (freqHz % 1000 == 0) {
-                "${freqHz / 1000}k"
-            } else {
-                val divided = freqHz / 1000f
-                if (divided == 3.6f) "3.6k" else "${divided}k"
-            }
-        } else {
-            "$freqHz"
-        }
-    }
-
-    fun toggleEqualizer() {
-        eqEnabled = !eqEnabled
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("eq_enabled", eqEnabled).apply()
-        notifyServiceReloadEffects()
-    }
-
-    fun toggleBassBoost() {
-        bbEnabled = !bbEnabled
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("bb_enabled", bbEnabled).apply()
-        notifyServiceReloadEffects()
-    }
-
-    fun updateEqualizerBand(bandIndex: Int, level: Int, isManual: Boolean = false) {
-        if (bandIndex in eqBands.indices) {
-            eqBands[bandIndex] = level
-            val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-            if (isManual) {
-                eqActivePreset = "Custom"
-                prefs.edit().putString("eq_active_preset", "Custom").apply()
-            }
-            prefs.edit().putInt("eq_band_$bandIndex", level).apply()
-            notifyServiceReloadEffects()
-        }
-    }
-
-    fun updateBassBoostStrength(strength: Int) {
-        bbStrength = strength
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putInt("bb_strength", strength).apply()
-        notifyServiceReloadEffects()
-    }
-
-    fun applyEqualizerPreset(presetName: String) {
-        val standard5Bands = when (presetName.lowercase()) {
-            "balanced" -> listOf(0, 0, 0, 0, 0)
-            "bass boost" -> listOf(800, 600, 300, 0, 0)
-            "smooth" -> listOf(-200, 100, 300, 200, -100)
-            "dynamic" -> listOf(600, 200, -200, 200, 600)
-            "clear" -> listOf(-200, 0, 400, 300, 100)
-            "treble boost" -> listOf(0, 0, 200, 600, 800)
-            else -> listOf(0, 0, 0, 0, 0) // Flat / Custom default
-        }
-        eqActivePreset = presetName
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putString("eq_active_preset", presetName).apply()
-
-        // Dynamic Bass Boost integration for Bass boost preset
-        if (presetName.lowercase() == "bass boost") {
-            bbEnabled = true
-            bbStrength = 800
-            prefs.edit().putBoolean("bb_enabled", true).putInt("bb_strength", 800).apply()
-        } else {
-            bbEnabled = false
-            bbStrength = 0
-            prefs.edit().putBoolean("bb_enabled", false).putInt("bb_strength", 0).apply()
-        }
-
-        val bandsCount = eqBands.size
-        for (i in 0 until bandsCount) {
-            val value = if (bandsCount == 5) {
-                standard5Bands[i]
-            } else {
-                val fraction = i.toFloat() / (bandsCount - 1).coerceAtLeast(1)
-                val sourceIndexFloat = fraction * 4
-                val lowerIndex = sourceIndexFloat.toInt().coerceIn(0, 4)
-                val upperIndex = (lowerIndex + 1).coerceIn(0, 4)
-                val diff = sourceIndexFloat - lowerIndex
-                val lowerVal = standard5Bands[lowerIndex]
-                val upperVal = standard5Bands[upperIndex]
-                (lowerVal + diff * (upperVal - lowerVal)).toInt()
-            }
-            updateEqualizerBand(i, value, isManual = false)
-        }
-    }
+    // Persistence and mutation logic now live in SettingsController; these forward unchanged.
+    fun getBandFrequencyLabel(index: Int): String = settingsController.getBandFrequencyLabel(index)
+    fun toggleEqualizer() = settingsController.toggleEqualizer()
+    fun toggleBassBoost() = settingsController.toggleBassBoost()
+    fun updateEqualizerBand(bandIndex: Int, level: Int, isManual: Boolean = false) =
+        settingsController.updateEqualizerBand(bandIndex, level, isManual)
+    fun updateBassBoostStrength(strength: Int) = settingsController.updateBassBoostStrength(strength)
+    fun applyEqualizerPreset(presetName: String) = settingsController.applyEqualizerPreset(presetName)
 
     // ---------------- PLAYBACK SETTINGS ----------------
-    fun initPlaybackSettings() {
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        gaplessPlaybackEnabled = prefs.getBoolean("gapless_playback", true)
-        automixEnabled = prefs.getBoolean("automix", true)
-        crossfadeDurationSec = prefs.getInt("crossfade_duration", 0)
-        monoAudioEnabled = prefs.getBoolean("mono_audio", false)
-    }
-
-    fun toggleGaplessPlayback() {
-        gaplessPlaybackEnabled = !gaplessPlaybackEnabled
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("gapless_playback", gaplessPlaybackEnabled).apply()
-        notifyServiceReloadEffects()
-    }
-
-    fun toggleAutomix() {
-        automixEnabled = !automixEnabled
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("automix", automixEnabled).apply()
-        notifyServiceReloadEffects()
-    }
-
-    fun updateCrossfadeDuration(seconds: Int) {
-        crossfadeDurationSec = seconds
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putInt("crossfade_duration", seconds).apply()
-        notifyServiceReloadEffects()
-    }
-
-    fun toggleMonoAudio() {
-        monoAudioEnabled = !monoAudioEnabled
-        val prefs = getApplication<Application>().getSharedPreferences(PrefsKeys.FILE_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("mono_audio", monoAudioEnabled).apply()
-        notifyServiceReloadEffects()
-    }
-
-    private fun notifyServiceReloadEffects() {
-        val intent = Intent(getApplication(), MusicService::class.java).apply {
-            action = "com.example.ACTION_RELOAD_EFFECTS"
-        }
-        getApplication<Application>().startService(intent)
-    }
+    fun toggleGaplessPlayback() = settingsController.toggleGaplessPlayback()
+    fun toggleAutomix() = settingsController.toggleAutomix()
+    fun updateCrossfadeDuration(seconds: Int) = settingsController.updateCrossfadeDuration(seconds)
+    fun toggleMonoAudio() = settingsController.toggleMonoAudio()
 
     // ---------------- PREMIUM LOCAL METADATA / ID3 OVERRIDES ----------------
     fun saveSongOverride(songId: String, title: String, artist: String, album: String) {
