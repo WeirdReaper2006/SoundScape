@@ -33,8 +33,42 @@ class InputValidatorTest {
     @Test
     fun `validateFolderSuffix rejects path traversal`() {
         assertInvalid(InputValidator.validateFolderSuffix("../secret"))
-        assertInvalid(InputValidator.validateFolderSuffix("a/b"))
+        assertInvalid(InputValidator.validateFolderSuffix("Music/../etc"))
+        assertInvalid(InputValidator.validateFolderSuffix(".."))
+    }
+
+    @Test
+    fun `validateFolderSuffix accepts nested folders`() {
         assertValid(InputValidator.validateFolderSuffix("my-folder_1"))
+        assertValid(InputValidator.validateFolderSuffix("Music/Rock"))
+        assertValid(InputValidator.validateFolderSuffix("Music/Rock/Deep"))
+    }
+
+    @Test
+    fun `validateFolderSuffix rejects empty or malformed path segments`() {
+        assertInvalid(InputValidator.validateFolderSuffix("Music//Rock"))
+        assertInvalid(InputValidator.validateFolderSuffix("/Music"))
+        assertInvalid(InputValidator.validateFolderSuffix("Music/"))
+    }
+
+    @Test
+    fun `validateFolderSuffix accepts common special characters in folder names`() {
+        assertValid(InputValidator.validateFolderSuffix("My Music"))
+        assertValid(InputValidator.validateFolderSuffix("90's Hits"))
+        assertValid(InputValidator.validateFolderSuffix("Podcasts & Audiobooks"))
+        assertValid(InputValidator.validateFolderSuffix("Rock (2020s)"))
+        assertValid(InputValidator.validateFolderSuffix("Café Playlist"))
+    }
+
+    @Test
+    fun `validateFolderSuffix rejects filesystem-reserved characters`() {
+        assertInvalid(InputValidator.validateFolderSuffix("Movies\\Backup"))
+        assertInvalid(InputValidator.validateFolderSuffix("a:b"))
+        assertInvalid(InputValidator.validateFolderSuffix("a*b"))
+        assertInvalid(InputValidator.validateFolderSuffix("a?b"))
+        assertInvalid(InputValidator.validateFolderSuffix("a\"b"))
+        assertInvalid(InputValidator.validateFolderSuffix("a<b>"))
+        assertInvalid(InputValidator.validateFolderSuffix("a|b"))
     }
 
     @Test

@@ -14,9 +14,9 @@ object InputValidator {
     }
 
     private val NAME_REGEX = Regex("^[\\p{L}\\p{N} '_-]+$")
-    private val FOLDER_SUFFIX_REGEX = Regex("^[A-Za-z0-9_-]+$")
     private val CONTROL_CHAR_REGEX = Regex("[\\p{Cntrl}]")
     private val FILESYSTEM_UNSAFE_REGEX = Regex("[\\\\/:*?\"<>|]")
+    private val FOLDER_SEGMENT_UNSAFE_REGEX = Regex("[\\\\:*?\"<>|]")
     private val AUDIO_EXTENSIONS = setOf(
         "mp3", "m4a", "m4b", "flac", "wav", "ogg", "oga", "aac", "wma", "opus"
     )
@@ -41,14 +41,28 @@ object InputValidator {
         return ValidationResult.Valid
     }
 
-    /** Custom scan-folder suffix (must never allow path traversal). */
+    /**
+     * Custom scan-folder suffix, possibly nested (e.g. "Music/Rock"). Must never allow path
+     * traversal - enforced explicitly via the "..' check below rather than by restricting the
+     * character set, so real-world folder names (spaces, apostrophes, accents, etc.) still work.
+     */
     fun validateFolderSuffix(value: String): ValidationResult {
         val trimmed = value.trim()
         if (trimmed.isEmpty() || trimmed.length > FOLDER_SUFFIX_MAX_LENGTH) {
             return ValidationResult.Invalid("Folder suffix must be between 1 and $FOLDER_SUFFIX_MAX_LENGTH characters.")
         }
-        if (!FOLDER_SUFFIX_REGEX.matches(trimmed)) {
-            return ValidationResult.Invalid("Folder suffix may only contain letters, numbers, hyphens and underscores.")
+        if (CONTROL_CHAR_REGEX.containsMatchIn(trimmed)) {
+            return ValidationResult.Invalid("Folder suffix contains unsupported control characters.")
+        }
+        if (trimmed.contains("..")) {
+            return ValidationResult.Invalid("Folder suffix may not contain '..'.")
+        }
+        val segments = trimmed.split("/")
+        if (segments.any { it.isBlank() }) {
+            return ValidationResult.Invalid("Folder suffix may not contain empty path segments.")
+        }
+        if (segments.any { FOLDER_SEGMENT_UNSAFE_REGEX.containsMatchIn(it) }) {
+            return ValidationResult.Invalid("Folder suffix may not contain \\ : * ? \" < > |")
         }
         return ValidationResult.Valid
     }
