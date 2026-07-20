@@ -21,10 +21,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.MusicService
-import com.example.data.db.AppDatabase
+import com.example.data.AppContainer
 import com.example.data.db.PlaylistEntity
 import com.example.data.models.Song
-import com.example.data.repository.MusicRepository
 import com.example.util.AppLogger
 import com.example.util.InputValidator
 import com.example.util.PrefsKeys
@@ -51,8 +50,7 @@ enum class SortOrder {
 @OptIn(UnstableApi::class)
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val musicDao = AppDatabase.getDatabase(application).musicDao()
-    private val repository = MusicRepository(application, musicDao)
+    private val repository = AppContainer.getRepository(application)
 
     // MediaController related
     private var controllerFuture: ListenableFuture<MediaController>? = null

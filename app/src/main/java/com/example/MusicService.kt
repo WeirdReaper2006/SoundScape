@@ -15,7 +15,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import com.example.data.db.AppDatabase
+import com.example.data.AppContainer
 import com.example.data.models.Song
 import com.example.data.repository.MusicRepository
 import com.example.util.AppLogger
@@ -54,7 +54,7 @@ class MusicService : MediaSessionService() {
         super.onCreate()
 
         PrefsKeys.migrateLegacyPrefsIfNeeded(this)
-        repository = MusicRepository(this, AppDatabase.getDatabase(this).musicDao())
+        repository = AppContainer.getRepository(this)
 
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
