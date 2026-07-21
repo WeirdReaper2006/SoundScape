@@ -365,18 +365,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putBoolean("library_grid_view", isLibraryGridView).apply()
     }
 
-    private fun sortSongsList(list: List<Song>, criteria: SortCriteria, order: SortOrder): List<Song> {
-        val sorted = when (criteria) {
-            SortCriteria.TITLE -> list.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
-            SortCriteria.ARTIST -> list.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
-            SortCriteria.DURATION -> list.sortedBy { it.durationMs }
-            SortCriteria.DATE_ADDED -> list.sortedBy { it.dateAdded }
-        }
-        return if (order == SortOrder.DESCENDING) sorted.reversed() else sorted
-    }
-
     private fun applySortingAndFiltering() {
-        allSongs = sortSongsList(allSongs, activeSortCriteria, activeSortOrder)
+        allSongs = sortSongs(allSongs, activeSortCriteria, activeSortOrder)
         onSearchQueryChanged(searchQuery)
     }
 
@@ -386,7 +376,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val foundLocal = repository.getLocalSongs()
                 val mapped = applyOverridesToSongs(foundLocal)
-                allSongs = sortSongsList(mapped, activeSortCriteria, activeSortOrder)
+                allSongs = sortSongs(mapped, activeSortCriteria, activeSortOrder)
                 searchResults = allSongs
                 // Start background scan of genres asynchronously so that UI loads instantaneously!
                 startAsynchronousGenreScanning(allSongs)
@@ -473,7 +463,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                         if (existing.genre == null) existing.copy(genre = scanned.genre) else existing
                                     } ?: existing
                                 }
-                                allSongs = sortSongsList(merged, activeSortCriteria, activeSortOrder)
+                                allSongs = sortSongs(merged, activeSortCriteria, activeSortOrder)
                                 searchResults = allSongs
                             }
                         }
@@ -488,15 +478,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         searchQuery = query
-        searchResults = if (query.isBlank()) {
-            allSongs
-        } else {
-            allSongs.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                        it.artist.contains(query, ignoreCase = true) ||
-                        it.album.contains(query, ignoreCase = true)
-            }
-        }
+        searchResults = filterSongsByQuery(allSongs, query)
     }
 
     // Builds a MediaItem carrying the full Song payload (as MediaMetadata extras) so that
@@ -1002,17 +984,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     if (trimmed.isEmpty()) continue
                     
                     if (trimmed.startsWith("#EXTINF:")) {
-                        val parts = trimmed.substringAfter("#EXTINF:").split(",", limit = 2)
-                        if (parts.size == 2) {
-                            val info = parts[1]
-                            val dashIndex = info.indexOf(" - ")
-                            if (dashIndex != -1) {
-                                currentArtist = info.substring(0, dashIndex).trim()
-                                currentTitle = info.substring(dashIndex + 3).trim()
-                            } else {
-                                currentTitle = info.trim()
-                                currentArtist = "Unknown Artist"
-                            }
+                        parseExtinfArtistAndTitle(trimmed)?.let { (artist, title) ->
+                            currentArtist = artist
+                            currentTitle = title
                         }
                     } else if (!trimmed.startsWith("#")) {
                         val path = trimmed

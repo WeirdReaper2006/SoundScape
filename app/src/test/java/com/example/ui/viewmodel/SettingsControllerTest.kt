@@ -69,6 +69,15 @@ class SettingsControllerTest {
     }
 
     @Test
+    fun `getBandFrequencyLabel formats default hardware band frequencies`() {
+        assertEquals("60", controller.getBandFrequencyLabel(0))
+        assertEquals("230", controller.getBandFrequencyLabel(1))
+        assertEquals("910", controller.getBandFrequencyLabel(2))
+        assertEquals("3.6k", controller.getBandFrequencyLabel(3))
+        assertEquals("14k", controller.getBandFrequencyLabel(4))
+    }
+
+    @Test
     fun `toggleGaplessPlayback flips and persists across reload`() {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val initial = controller.gaplessPlaybackEnabled
