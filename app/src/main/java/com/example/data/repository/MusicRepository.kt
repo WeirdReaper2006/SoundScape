@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import com.example.data.db.*
 import com.example.data.models.Song
 import com.example.util.AppLogger
+import com.example.util.InputValidator
 import com.example.util.PrefsKeys
 import com.example.util.UserFacingException
 import kotlinx.coroutines.Dispatchers
@@ -101,9 +102,12 @@ class MusicRepository(
 
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
-                    val title = cursor.getString(titleColumn) ?: "Unknown Track"
-                    val artist = cursor.getString(artistColumn) ?: "Unknown Artist"
-                    val album = cursor.getString(albumColumn) ?: "Unknown Album"
+                    // Song tags come from the file's own embedded metadata (indexed verbatim by
+                    // MediaStore), so they're untrusted input - sanitize before they can flow
+                    // into UI text or an exported M3U file.
+                    val title = InputValidator.sanitizeUntrustedMetadataField(cursor.getString(titleColumn) ?: "").ifEmpty { "Unknown Track" }
+                    val artist = InputValidator.sanitizeUntrustedMetadataField(cursor.getString(artistColumn) ?: "").ifEmpty { "Unknown Artist" }
+                    val album = InputValidator.sanitizeUntrustedMetadataField(cursor.getString(albumColumn) ?: "").ifEmpty { "Unknown Album" }
                     val duration = cursor.getLong(durationColumn)
                     val path = cursor.getString(pathColumn) ?: ""
                     val mime = cursor.getString(mimeColumn)

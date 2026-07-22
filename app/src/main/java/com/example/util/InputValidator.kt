@@ -101,6 +101,18 @@ object InputValidator {
         return ValidationResult.Valid
     }
 
+    /**
+     * Strips control characters (notably newlines) from metadata read from an untrusted source
+     * (a song file's own embedded tags, indexed verbatim by MediaStore) and caps its length.
+     * Unlike [validateMetadataField], this never rejects the song outright - it must still show
+     * up in the library - but the raw value can't be trusted as a single line of plain text: a
+     * crafted tag containing an embedded newline could otherwise inject a bogus extra line into
+     * an exported M3U file (forging a fake additional playlist entry on re-import).
+     */
+    fun sanitizeUntrustedMetadataField(value: String): String {
+        return CONTROL_CHAR_REGEX.replace(value, " ").trim().take(METADATA_FIELD_MAX_LENGTH)
+    }
+
     /** Free-text library/search query. */
     fun validateSearchQuery(value: String): ValidationResult {
         if (value.length > SEARCH_QUERY_MAX_LENGTH) {
@@ -115,6 +127,8 @@ object InputValidator {
     /**
      * A file path line imported from an untrusted M3U playlist file. Must look like a
      * plausible audio file path before it's allowed to be persisted and later opened as media.
+     * Must never allow path traversal or relative paths - a crafted ".." entry or a bare
+     * relative path could otherwise reference files entirely outside the music library.
      */
     fun validateImportedMediaPath(value: String): ValidationResult {
         val trimmed = value.trim()
@@ -123,6 +137,12 @@ object InputValidator {
         }
         if (CONTROL_CHAR_REGEX.containsMatchIn(trimmed)) {
             return ValidationResult.Invalid("Media path contains unsupported control characters.")
+        }
+        if (!trimmed.startsWith("/")) {
+            return ValidationResult.Invalid("Media path must be an absolute path.")
+        }
+        if (trimmed.contains("..")) {
+            return ValidationResult.Invalid("Media path may not contain '..'.")
         }
         val extension = trimmed.substringAfterLast('.', missingDelimiterValue = "").lowercase()
         if (extension !in AUDIO_EXTENSIONS) {

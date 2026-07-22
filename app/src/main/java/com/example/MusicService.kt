@@ -37,10 +37,12 @@ class MusicService : MediaSessionService() {
         var bassBoost: android.media.audiofx.BassBoost?
     )
     private val effectsBySessionId = mutableMapOf<Int, AudioEffectsPair>()
+    private val lastSessionIdByPlayer = mutableMapOf<ExoPlayer, Int>()
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var hasAutomixedCurrentTrack = false
     private var hasRecordedCurrentTrack = false
+    private var pendingResumeRunnable: Runnable? = null
 
     private lateinit var repository: MusicRepository
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -70,7 +72,8 @@ class MusicService : MediaSessionService() {
             buildRenderersFactory = ::buildRenderersFactory,
             audioAttributes = audioAttributes,
             onCanonicalPlayerChanged = { newPlayer -> routingPlayer.switchDelegate(newPlayer) },
-            onAudioSessionIdChanged = { _, audioSessionId ->
+            onAudioSessionIdChanged = { player, audioSessionId ->
+                releaseStaleSessionEffects(player, audioSessionId)
                 if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
                     setupAudioEffects(audioSessionId)
                 }
@@ -79,7 +82,10 @@ class MusicService : MediaSessionService() {
 
         routingPlayer = RoutingPlayer(
             initial = crossfadePlayerController.canonicalPlayer(),
-            onNavigationCommand = { crossfadePlayerController.cancelActiveCrossfade() },
+            onNavigationCommand = {
+                cancelPendingResume()
+                crossfadePlayerController.cancelActiveCrossfade()
+            },
             onRelease = { crossfadePlayerController.release() }
         )
 
@@ -96,6 +102,7 @@ class MusicService : MediaSessionService() {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 hasAutomixedCurrentTrack = false
                 hasRecordedCurrentTrack = false
+                cancelPendingResume()
 
                 val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
                 val gapless = prefs.getBoolean("gapless_playback", true)
@@ -107,7 +114,9 @@ class MusicService : MediaSessionService() {
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !gapless && crossfadeDurationSec == 0) {
                     val canonical = crossfadePlayerController.canonicalPlayer()
                     canonical.pause()
-                    mainHandler.postDelayed({ canonical.play() }, 1000)
+                    val resume = Runnable { canonical.play() }
+                    pendingResumeRunnable = resume
+                    mainHandler.postDelayed(resume, 1000)
                 }
             }
         })
@@ -142,6 +151,23 @@ class MusicService : MediaSessionService() {
                     .setAudioProcessors(processors)
                     .build()
             }
+        }
+    }
+
+    /**
+     * The dual-player crossfade design repeatedly stops/reconfigures the idle player, which can
+     * assign it a new audio session id without ever reusing a previous one - effectsBySessionId
+     * previously only released entries on id *reuse* or service destroy, so those in-between
+     * sessions' native Equalizer/BassBoost instances leaked for the lifetime of the service.
+     */
+    @OptIn(UnstableApi::class)
+    private fun releaseStaleSessionEffects(player: ExoPlayer, newSessionId: Int) {
+        val previous = lastSessionIdByPlayer.put(player, newSessionId)
+        if (previous == null || previous == newSessionId || previous == C.AUDIO_SESSION_ID_UNSET) return
+        if (lastSessionIdByPlayer.values.any { it == previous }) return
+        effectsBySessionId.remove(previous)?.let {
+            it.equalizer?.release()
+            it.bassBoost?.release()
         }
     }
 
@@ -219,6 +245,12 @@ class MusicService : MediaSessionService() {
         } catch (e: Exception) {
             AppLogger.e("MusicService", "Failed to reload playback settings", e)
         }
+    }
+
+    private fun cancelPendingResume() {
+        val runnable = pendingResumeRunnable ?: return
+        mainHandler.removeCallbacks(runnable)
+        pendingResumeRunnable = null
     }
 
     private fun checkPlaybackProgress() {
@@ -304,12 +336,14 @@ class MusicService : MediaSessionService() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(checkPlaybackRunnable)
+        cancelPendingResume()
         serviceScope.cancel()
         effectsBySessionId.values.forEach {
             it.equalizer?.release()
             it.bassBoost?.release()
         }
         effectsBySessionId.clear()
+        lastSessionIdByPlayer.clear()
         crossfadePlayerController.release()
         mediaSession?.release()
         mediaSession = null

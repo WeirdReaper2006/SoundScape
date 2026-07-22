@@ -1,6 +1,7 @@
 package com.example.util
 
 import com.example.util.InputValidator.ValidationResult
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -103,5 +104,24 @@ class InputValidatorTest {
     fun `validateImportedMediaPath rejects control characters and oversized paths`() {
         assertInvalid(InputValidator.validateImportedMediaPath("/Music/badpath.mp3"))
         assertInvalid(InputValidator.validateImportedMediaPath("/" + "a".repeat(1025) + ".mp3"))
+    }
+
+    @Test
+    fun `validateImportedMediaPath rejects path traversal`() {
+        assertInvalid(InputValidator.validateImportedMediaPath("../../../../data/data/com.example/databases/music_database.mp3"))
+        assertInvalid(InputValidator.validateImportedMediaPath("/Music/../../../etc/song.mp3"))
+    }
+
+    @Test
+    fun `validateImportedMediaPath rejects relative paths`() {
+        assertInvalid(InputValidator.validateImportedMediaPath("song.mp3"))
+        assertInvalid(InputValidator.validateImportedMediaPath("Music/song.mp3"))
+    }
+
+    @Test
+    fun `sanitizeUntrustedMetadataField strips control characters and caps length`() {
+        assertEquals("evil injected", InputValidator.sanitizeUntrustedMetadataField("evil\ninjected"))
+        assertEquals("a".repeat(200), InputValidator.sanitizeUntrustedMetadataField("a".repeat(500)))
+        assertEquals("Bohemian Rhapsody", InputValidator.sanitizeUntrustedMetadataField("Bohemian Rhapsody"))
     }
 }

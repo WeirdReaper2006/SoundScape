@@ -54,7 +54,13 @@ class RoutingPlayer(
         private val navigationMethods = setOf(
             "play", "pause", "stop", "seekTo", "seekToDefaultPosition", "seekBack", "seekForward",
             "seekToNext", "seekToNextMediaItem", "seekToNextWindow",
-            "seekToPrevious", "seekToPreviousMediaItem", "seekToPreviousWindow"
+            "seekToPrevious", "seekToPreviousMediaItem", "seekToPreviousWindow",
+            // Queue-mutation commands also need to cancel an in-flight crossfade: it captures the
+            // upcoming-item index once at fade-start, so an edit mid-fade (reorder/remove/add)
+            // would otherwise let the fade complete against a now-stale index.
+            "addMediaItem", "addMediaItems", "removeMediaItem", "removeMediaItems",
+            "moveMediaItem", "moveMediaItems", "clearMediaItems",
+            "replaceMediaItem", "replaceMediaItems", "setMediaItem", "setMediaItems"
         )
 
         init {

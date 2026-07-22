@@ -49,6 +49,12 @@ enum class SortOrder {
 @OptIn(UnstableApi::class)
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
+    companion object {
+        // An M3U is plain text describing at most a few thousand tracks; 5MB is already
+        // generous headroom over any plausible legitimate playlist file.
+        private const val MAX_M3U_FILE_SIZE_BYTES = 5L * 1024 * 1024
+    }
+
     private val repository = AppContainer.getRepository(application)
 
     // Profile/theme, equalizer + bass boost, and playback-settings persistence live here; see
@@ -370,8 +376,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         onSearchQueryChanged(searchQuery)
     }
 
+    private var refreshLibraryJob: kotlinx.coroutines.Job? = null
+
     fun refreshLibrary() {
-        viewModelScope.launch {
+        // Called from several independent triggers (init, profile update, end of M3U import);
+        // without cancelling a prior in-flight run, two overlapping calls could both write
+        // allSongs/searchResults/isLoadingSongs, with the one that finishes last winning
+        // regardless of which was started last.
+        refreshLibraryJob?.cancel()
+        refreshLibraryJob = viewModelScope.launch {
             isLoadingSongs = true
             try {
                 val foundLocal = repository.getLocalSongs()
@@ -684,13 +697,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Favorites & Playlists management
+    private val favoriteTogglesInFlight = mutableSetOf<String>()
+
     fun toggleFavorite(song: Song) {
+        // favoriteSongs.value only reflects the last completed DB write, not any toggle already
+        // in flight - without this guard, two rapid taps on the same song both read the same
+        // pre-toggle snapshot and issue the same operation instead of toggling back and forth.
+        if (!favoriteTogglesInFlight.add(song.id)) return
         viewModelScope.launch {
-            val isFav = favoriteSongs.value.any { it.id == song.id }
-            if (isFav) {
-                repository.removeFavorite(song.id)
-            } else {
-                repository.addFavorite(song)
+            try {
+                val isFav = favoriteSongs.value.any { it.id == song.id }
+                if (isFav) {
+                    repository.removeFavorite(song.id)
+                } else {
+                    repository.addFavorite(song)
+                }
+            } finally {
+                favoriteTogglesInFlight.remove(song.id)
             }
         }
     }
@@ -969,7 +992,29 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun importPlaylistFromM3U(file: File) {
         viewModelScope.launch {
             try {
-                val playlistName = file.nameWithoutExtension
+                // An M3U is plain text describing at most a few thousand tracks - a multi-MB file
+                // is already implausible. Reject oversized files before reading them fully into
+                // memory via readLines() below, which has no size/line-count cap of its own.
+                if (file.length() > MAX_M3U_FILE_SIZE_BYTES) {
+                    AppLogger.w("MusicViewModel", "Rejected oversized M3U file during import: ${file.name}")
+                    android.widget.Toast.makeText(
+                        getApplication(),
+                        "This playlist file is too large to import.",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return@launch
+                }
+
+                // The filename is attacker/user controlled (anyone can drop an arbitrarily named
+                // .m3u into the scanned folder) - validate it the same way a manually created
+                // playlist name is validated, falling back to a default rather than persisting
+                // an empty or oversized name.
+                val candidateName = file.nameWithoutExtension
+                val playlistName = if (InputValidator.validatePlaylistName(candidateName) is InputValidator.ValidationResult.Valid) {
+                    candidateName
+                } else {
+                    "Imported Playlist"
+                }
                 val playlistId = repository.createPlaylist(playlistName)
                 
                 val lines = withContext(Dispatchers.IO) {
@@ -985,8 +1030,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     
                     if (trimmed.startsWith("#EXTINF:")) {
                         parseExtinfArtistAndTitle(trimmed)?.let { (artist, title) ->
-                            currentArtist = artist
-                            currentTitle = title
+                            // EXTINF text comes from an untrusted playlist file, not from a
+                            // validated user-input form - sanitize before persisting.
+                            currentArtist = InputValidator.sanitizeUntrustedMetadataField(artist)
+                            currentTitle = InputValidator.sanitizeUntrustedMetadataField(title)
                         }
                     } else if (!trimmed.startsWith("#")) {
                         val path = trimmed
@@ -1000,7 +1047,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         } else if (InputValidator.validateImportedMediaPath(path) is InputValidator.ValidationResult.Valid) {
                             val fileName = File(path).nameWithoutExtension
                             val fallbackSong = Song(
-                                id = path.hashCode().toString(),
+                                // The path itself is a stable, collision-free identifier for an
+                                // imported song - path.hashCode() previously risked two distinct
+                                // paths colliding on the same 32-bit hash and being treated as
+                                // the same song wherever id is used as a lookup/equality key.
+                                id = path,
                                 title = if (currentTitle.isNotEmpty()) currentTitle else fileName,
                                 artist = if (currentArtist.isNotEmpty()) currentArtist else "Unknown Artist",
                                 album = "Imported Playlist",

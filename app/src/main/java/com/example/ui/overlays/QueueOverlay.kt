@@ -103,6 +103,19 @@ fun QueueOverlay(
         }
     }
 
+    // Guards against rapid repeated taps on the same row's move/remove buttons: the queue
+    // mutates (and rows shift) between the first tap landing and recomposition, so a fast
+    // second tap can otherwise act on a stale realIndex pointing at a different song.
+    var lastQueueActionTime by remember { mutableStateOf(0L) }
+    val queueActionGuardMs = 400L
+    fun guardedQueueAction(action: () -> Unit) {
+        val now = System.currentTimeMillis()
+        if (now - lastQueueActionTime >= queueActionGuardMs) {
+            lastQueueActionTime = now
+            action()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -224,7 +237,7 @@ fun QueueOverlay(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(upcomingQueue) { index, song ->
+                itemsIndexed(upcomingQueue, key = { index, song -> "$index-${song.id}" }) { index, song ->
                     val realIndex = index + currentIndex + 1
                     Row(
                         modifier = Modifier
@@ -271,16 +284,16 @@ fun QueueOverlay(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // Up/down buttons based on upcomingQueue index bounds
                             if (index > 0) {
-                                IconButton(onClick = { viewModel.reorderQueue(realIndex, realIndex - 1) }) {
+                                IconButton(onClick = { guardedQueueAction { viewModel.reorderQueue(realIndex, realIndex - 1) } }) {
                                     Icon(Icons.Default.ArrowUpward, contentDescription = "Move Up", tint = ThemeWhite, modifier = Modifier.size(16.dp))
                                 }
                             }
                             if (index < upcomingQueue.size - 1) {
-                                IconButton(onClick = { viewModel.reorderQueue(realIndex, realIndex + 1) }) {
+                                IconButton(onClick = { guardedQueueAction { viewModel.reorderQueue(realIndex, realIndex + 1) } }) {
                                     Icon(Icons.Default.ArrowDownward, contentDescription = "Move Down", tint = ThemeWhite, modifier = Modifier.size(16.dp))
                                 }
                             }
-                            IconButton(onClick = { viewModel.removeFromQueueAt(realIndex) }) {
+                            IconButton(onClick = { guardedQueueAction { viewModel.removeFromQueueAt(realIndex) } }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove from Queue", tint = SpotifyTextSecondary)
                             }
                         }

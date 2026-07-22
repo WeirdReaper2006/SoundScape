@@ -2,6 +2,8 @@ package com.example.data.db
 
 import android.content.Context
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "favorites")
@@ -24,7 +26,21 @@ data class PlaylistEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "playlist_songs")
+@Entity(
+    tableName = "playlist_songs",
+    foreignKeys = [
+        ForeignKey(
+            entity = PlaylistEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["playlistId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["playlistId"]),
+        Index(value = ["playlistId", "songId"], unique = true)
+    ]
+)
 data class PlaylistSongCrossRef(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val playlistId: Long,
@@ -83,7 +99,7 @@ interface MusicDao {
     @Query("DELETE FROM playlists WHERE id = :playlistId")
     fun deletePlaylist(playlistId: Long)
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertPlaylistSong(crossRef: PlaylistSongCrossRef)
 
     @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId AND songId = :songId")
@@ -111,6 +127,52 @@ interface MusicDao {
     fun deleteRecentPlayForSongOnDay(songId: String, startOfDay: Long)
 }
 
+/**
+ * playlist_songs previously had no foreign key back to playlists and no uniqueness constraint,
+ * so deleting a playlist left its songs orphaned forever (and, since PlaylistEntity's id isn't
+ * declared AUTOINCREMENT, SQLite could reuse a deleted playlist's rowid for a new one, making the
+ * new playlist appear to inherit the old one's orphaned songs). SQLite can't add a foreign key to
+ * an existing table, so the table is rebuilt: only rows whose playlistId still exists are kept,
+ * and duplicate (playlistId, songId) rows are collapsed to the earliest one before the new unique
+ * index is created.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE playlist_songs_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                playlistId INTEGER NOT NULL,
+                songId TEXT NOT NULL,
+                title TEXT NOT NULL,
+                artist TEXT NOT NULL,
+                album TEXT NOT NULL,
+                path TEXT NOT NULL,
+                durationMs INTEGER NOT NULL,
+                albumArtUri TEXT,
+                isLocal INTEGER NOT NULL,
+                FOREIGN KEY(playlistId) REFERENCES playlists(id) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO playlist_songs_new (id, playlistId, songId, title, artist, album, path, durationMs, albumArtUri, isLocal)
+            SELECT id, playlistId, songId, title, artist, album, path, durationMs, albumArtUri, isLocal
+            FROM playlist_songs
+            WHERE playlistId IN (SELECT id FROM playlists)
+            AND id IN (
+                SELECT MIN(id) FROM playlist_songs GROUP BY playlistId, songId
+            )
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE playlist_songs")
+        db.execSQL("ALTER TABLE playlist_songs_new RENAME TO playlist_songs")
+        db.execSQL("CREATE INDEX index_playlist_songs_playlistId ON playlist_songs(playlistId)")
+        db.execSQL("CREATE UNIQUE INDEX index_playlist_songs_playlistId_songId ON playlist_songs(playlistId, songId)")
+    }
+}
+
 @Database(
     entities = [
         FavoriteEntity::class,
@@ -119,7 +181,7 @@ interface MusicDao {
         SongOverrideEntity::class,
         RecentPlayEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -140,6 +202,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // Any future version bump without a real Migration now fails loudly
                 // during development instead of silently deleting user data.
                 .fallbackToDestructiveMigrationFrom(1)
+                .addMigrations(MIGRATION_2_3)
                 .build()
                     .also { INSTANCE = it }
             }

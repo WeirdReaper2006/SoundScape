@@ -3,6 +3,7 @@ package com.example
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -83,12 +84,12 @@ class CrossfadePlayerController(
         val position = p.currentPosition
         val currentIndex = p.currentMediaItemIndex
         if (fadeArmedForItemIndex == currentIndex) return
-        if (!p.hasNextMediaItem()) return
+        val nextIndex = p.getNextMediaItemIndex()
+        if (nextIndex == C.INDEX_UNSET) return
 
         val configuredMs = crossfadeDurationSec * 1000L
         if (duration - position > configuredMs) return
 
-        val nextIndex = currentIndex + 1
         val nextItem = p.getMediaItemAt(nextIndex)
         // Clamp to the current track's own remaining length so a track shorter than the
         // configured crossfade duration doesn't try to overlap past its own end.
@@ -112,6 +113,10 @@ class CrossfadePlayerController(
                     waitedMs += 20
                 }
                 if (toPlayer.playbackState != Player.STATE_READY) {
+                    // Leave fadeArmedForItemIndex set to fromPlayer's current item rather than
+                    // clearing it below: the position guard in scheduleCrossfadeCheck only skips
+                    // re-arming while still on this same track, so clearing it here would let the
+                    // next ~100ms poll immediately retry the same doomed prepare()/wait cycle.
                     AppLogger.e("CrossfadePlayerController", "Overlap player never became ready; skipping crossfade")
                     toPlayer.stop()
                     return@launch
@@ -131,20 +136,34 @@ class CrossfadePlayerController(
                 toPlayer.volume = 1f
 
                 promoteToCanonical(fromPlayer, toPlayer, nextItemIndex)
-            } finally {
                 fadeArmedForItemIndex = -1
+            } catch (t: Throwable) {
+                fadeArmedForItemIndex = -1
+                throw t
             }
         }
     }
 
     private fun promoteToCanonical(fromPlayer: ExoPlayer, toPlayer: ExoPlayer, nextItemIndex: Int) {
-        val fullItems = (0 until fromPlayer.mediaItemCount).map { fromPlayer.getMediaItemAt(it) }
-        val remainingAfterNext = fullItems.drop(nextItemIndex + 1)
-        if (remainingAfterNext.isNotEmpty()) {
-            toPlayer.addMediaItems(1, remainingAfterNext)
+        // Walk the timeline in the same order ExoPlayer would actually play it (honoring
+        // fromPlayer's shuffle order), not the raw linear item order - otherwise a shuffled
+        // queue would crossfade into the right track but then continue in linear order.
+        val timeline = fromPlayer.currentTimeline
+        val shuffled = fromPlayer.shuffleModeEnabled
+        val remainingInPlayOrder = mutableListOf<MediaItem>()
+        var idx = timeline.getNextWindowIndex(nextItemIndex, Player.REPEAT_MODE_OFF, shuffled)
+        while (idx != C.INDEX_UNSET) {
+            remainingInPlayOrder.add(fromPlayer.getMediaItemAt(idx))
+            idx = timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, shuffled)
+        }
+        if (remainingInPlayOrder.isNotEmpty()) {
+            toPlayer.addMediaItems(1, remainingInPlayOrder)
         }
         toPlayer.repeatMode = fromPlayer.repeatMode
-        toPlayer.shuffleModeEnabled = fromPlayer.shuffleModeEnabled
+        // Items above were already appended in the resolved play order, so toPlayer must stay
+        // unshuffled for them to play back in that order; re-enabling shuffle here would make
+        // ExoPlayer regenerate a fresh random order and effectively reset shuffle every crossfade.
+        toPlayer.shuffleModeEnabled = false
 
         fromPlayer.pause()
         fromPlayer.stop()
