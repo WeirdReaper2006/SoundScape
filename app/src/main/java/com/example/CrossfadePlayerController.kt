@@ -1,9 +1,11 @@
 package com.example
 
 import android.content.Context
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.RenderersFactory
 import com.example.util.AppLogger
@@ -21,6 +23,7 @@ import kotlinx.coroutines.launch
  * (add/remove/reorder/seek/skip) always target whichever player [canonicalPlayer] currently
  * returns, routed there by [RoutingPlayer].
  */
+@OptIn(UnstableApi::class)
 class CrossfadePlayerController(
     context: Context,
     private val scope: CoroutineScope,
