@@ -111,11 +111,25 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val onNonTabsRoute = currentRoute != null && currentRoute != "tabs"
 
+    // Guards against rapid repeated taps across navigate/pop/drawer-toggle/tab-switch actions.
+    // Without this, spamming taps across the sidebar, bottom tabs, and playlist navigation can
+    // fire overlapping mutations to the nav back stack, activeTabIndex, and drawerState at once,
+    // leaving them out of sync and the screen stuck blank.
+    var lastNavActionTime by remember { mutableStateOf(0L) }
+    val navGuardMs = 400L
+    fun guardedNav(action: () -> Unit) {
+        val now = System.currentTimeMillis()
+        if (now - lastNavActionTime >= navGuardMs) {
+            lastNavActionTime = now
+            action()
+        }
+    }
+
     // Bridges the legacy showRecentsPage flag (still flipped by HomeScreen's "Recently Played"
     // row) onto the nav back stack without needing to touch HomeScreen.
     LaunchedEffect(viewModel.showRecentsPage) {
         if (viewModel.showRecentsPage) {
-            navController.navigate("recents")
+            navController.navigate("recents") { launchSingleTop = true }
             viewModel.showRecentsPage = false
         }
     }
@@ -141,14 +155,18 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
         drawerContent = {
             SpotifySidebar(
                 viewModel = viewModel,
-                onClose = { coroutineScope.launch { drawerState.close() } },
+                onClose = { guardedNav { coroutineScope.launch { drawerState.close() } } },
                 onNavigateToSettings = {
-                    coroutineScope.launch { drawerState.close() }
-                    showProfileSettingsDialog = true
+                    guardedNav {
+                        coroutineScope.launch { drawerState.close() }
+                        showProfileSettingsDialog = true
+                    }
                 },
                 onNavigateToRecents = {
-                    coroutineScope.launch { drawerState.close() }
-                    viewModel.showRecentsPage = true
+                    guardedNav {
+                        coroutineScope.launch { drawerState.close() }
+                        viewModel.showRecentsPage = true
+                    }
                 }
             )
         }
@@ -184,9 +202,11 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         NavigationBarItem(
                             selected = viewModel.activeTabIndex == 0,
                             onClick = {
-                                viewModel.activeTabIndex = 0
-                                navController.popBackStack("tabs", inclusive = false)
-                                viewModel.showRecentsPage = false
+                                guardedNav {
+                                    viewModel.activeTabIndex = 0
+                                    navController.popBackStack("tabs", inclusive = false)
+                                    viewModel.showRecentsPage = false
+                                }
                             },
                             icon = { Icon(if (viewModel.activeTabIndex == 0) Icons.Filled.Home else Icons.Outlined.Home, contentDescription = "Home") },
                             label = { Text("Home") },
@@ -201,9 +221,11 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         NavigationBarItem(
                             selected = viewModel.activeTabIndex == 1,
                             onClick = {
-                                viewModel.activeTabIndex = 1
-                                navController.popBackStack("tabs", inclusive = false)
-                                viewModel.showRecentsPage = false
+                                guardedNav {
+                                    viewModel.activeTabIndex = 1
+                                    navController.popBackStack("tabs", inclusive = false)
+                                    viewModel.showRecentsPage = false
+                                }
                             },
                             icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                             label = { Text("Search") },
@@ -219,9 +241,11 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         NavigationBarItem(
                             selected = viewModel.activeTabIndex == 2,
                             onClick = {
-                                viewModel.activeTabIndex = 2
-                                navController.popBackStack("tabs", inclusive = false)
-                                viewModel.showRecentsPage = false
+                                guardedNav {
+                                    viewModel.activeTabIndex = 2
+                                    navController.popBackStack("tabs", inclusive = false)
+                                    viewModel.showRecentsPage = false
+                                }
                             },
                             icon = { Icon(if (viewModel.activeTabIndex == 2) Icons.Filled.LibraryMusic else Icons.Outlined.LibraryMusic, contentDescription = "Your Library") },
                             label = { Text("Your Library") },
@@ -253,19 +277,19 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         when (viewModel.activeTabIndex) {
                             0 -> HomeScreen(
                                 viewModel = viewModel,
-                                onPlaylistSelect = { navController.navigate("playlist_detail/${it.id}") },
-                                onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                                onPlaylistSelect = { guardedNav { navController.navigate("playlist_detail/${it.id}") { launchSingleTop = true } } },
+                                onProfileClick = { guardedNav { coroutineScope.launch { drawerState.open() } } }
                             )
                             1 -> SearchScreen(
                                 viewModel = viewModel,
-                                onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                                onProfileClick = { guardedNav { coroutineScope.launch { drawerState.open() } } }
                             )
                             2 -> LibraryScreen(
                                 viewModel = viewModel,
                                 onCreatePlaylistClick = { showCreatePlaylistDialog = true },
-                                onPlaylistClick = { navController.navigate("playlist_detail/${it.id}") },
-                                onVirtualPlaylistClick = { navController.navigate("virtual_playlist/$it") },
-                                onProfileClick = { coroutineScope.launch { drawerState.open() } }
+                                onPlaylistClick = { guardedNav { navController.navigate("playlist_detail/${it.id}") { launchSingleTop = true } } },
+                                onVirtualPlaylistClick = { guardedNav { navController.navigate("virtual_playlist/$it") { launchSingleTop = true } } },
+                                onProfileClick = { guardedNav { coroutineScope.launch { drawerState.open() } } }
                             )
                         }
                     }
@@ -280,7 +304,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                             title = playlist?.name ?: "",
                             songs = playlistSongs,
                             viewModel = viewModel,
-                            onBack = { navController.popBackStack() },
+                            onBack = { guardedNav { navController.popBackStack() } },
                             playlistId = playlistId
                         )
                     }
@@ -302,7 +326,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                             title = title,
                             songs = if (virtualPlaylistType == "liked_songs") favoriteList else viewModel.allSongs,
                             viewModel = viewModel,
-                            onBack = { navController.popBackStack() },
+                            onBack = { guardedNav { navController.popBackStack() } },
                             playlistId = null,
                             isLikedSongs = (virtualPlaylistType == "liked_songs"),
                             isFolderSongs = (virtualPlaylistType == "folder_songs")
@@ -311,7 +335,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                     composable("recents") {
                         RecentsScreen(
                             viewModel = viewModel,
-                            onBack = { navController.popBackStack() }
+                            onBack = { guardedNav { navController.popBackStack() } }
                         )
                     }
                 }
