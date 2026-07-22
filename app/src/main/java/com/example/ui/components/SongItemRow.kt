@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.SoundScapeType
+import com.example.ui.theme.mediumShadow
 @Composable
 fun SongItemRow(
     song: Song,
@@ -103,7 +106,8 @@ fun SongItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
+            .let { if (useCardStyle) it.mediumShadow(SoundScapeShapes.standard) else it }
+            .clip(SoundScapeShapes.standard)
             .background(if (useCardStyle) SpotifyMediumGray else Color.Transparent)
             .clickable { onClick() }
             .padding(vertical = 8.dp, horizontal = if (useCardStyle) 8.dp else 4.dp),
@@ -118,7 +122,7 @@ fun SongItemRow(
                 song = song,
                 modifier = Modifier
                     .size(48.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(SoundScapeShapes.subtle)
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -127,8 +131,7 @@ fun SongItemRow(
                 Text(
                     text = song.title,
                     color = ThemeWhite,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    style = SoundScapeType.captionBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -136,7 +139,7 @@ fun SongItemRow(
                 Text(
                     text = song.artist,
                     color = SpotifyTextSecondary,
-                    fontSize = 12.sp,
+                    style = SoundScapeType.small,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -159,7 +162,7 @@ fun SongItemRow(
                 DropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
-                    modifier = Modifier.background(SpotifyDark)
+                    modifier = Modifier.mediumShadow().background(SpotifyDark)
                 ) {
                     DropdownMenuItem(
                         text = { Text("Add to Queue", color = ThemeWhite) },

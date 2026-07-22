@@ -84,6 +84,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeType
 @Composable
 fun SettingsMenuItem(
     title: String,
@@ -116,13 +117,12 @@ fun SettingsMenuItem(
             Text(
                 text = title,
                 color = ThemeWhite,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.bodyLarge
             )
             Text(
                 text = subtitle,
                 color = SpotifyTextSecondary,
-                fontSize = 12.sp
+                style = SoundScapeType.small
             )
         }
         Icon(

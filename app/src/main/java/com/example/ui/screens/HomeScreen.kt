@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.SoundScapeType
+import com.example.ui.theme.mediumShadow
 @Composable
 fun HomeScreen(
     viewModel: MusicViewModel,
@@ -205,7 +208,7 @@ fun HomeScreen(
                                 song = song,
                                 modifier = Modifier
                                     .size(110.dp)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(SoundScapeShapes.comfortable)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
@@ -220,7 +223,7 @@ fun HomeScreen(
                             Text(
                                 text = song.artist,
                                 color = SpotifyTextSecondary,
-                                fontSize = 10.sp,
+                                style = SoundScapeType.micro,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -252,7 +255,7 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(60.dp)
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .clip(SoundScapeShapes.standard)
                                     .background(SpotifyMediumGray)
                                     .clickable { viewModel.playSong(song) },
                                 verticalAlignment = Alignment.CenterVertically
@@ -295,7 +298,9 @@ fun HomeScreen(
                                     DropdownMenu(
                                         expanded = showQuickPlayMenu,
                                         onDismissRequest = { showQuickPlayMenu = false },
-                                        modifier = Modifier.background(SpotifyDark)
+                                        modifier = Modifier
+                                            .mediumShadow(SoundScapeShapes.standard)
+                                            .background(SpotifyDark)
                                     ) {
                                         DropdownMenuItem(
                                             text = { Text("Add to Queue", color = ThemeWhite) },
@@ -344,14 +349,14 @@ fun HomeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(SoundScapeShapes.comfortable)
                         .background(SpotifyMediumGray),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "No genres identified yet! Ensure your music files have genre tags.",
                         color = SpotifyTextSecondary,
-                        fontSize = 12.sp,
+                        style = SoundScapeType.small,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(16.dp)
                     )
@@ -401,7 +406,7 @@ fun HomeScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .aspectRatio(1f)
-                                                .clip(RoundedCornerShape(8.dp))
+                                                .clip(SoundScapeShapes.comfortable)
                                                 .background(brush = Brush.linearGradient(colors = gradientColors)),
                                             contentAlignment = Alignment.Center
                                         ) {

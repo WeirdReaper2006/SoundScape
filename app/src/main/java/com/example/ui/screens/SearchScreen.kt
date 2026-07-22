@@ -84,6 +84,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.components.CircularPlayButton
+import com.example.ui.theme.SoundScapeShapes
 @Composable
 fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
     val localContext = LocalContext.current
@@ -126,8 +128,7 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
             Text(
                 text = "Search",
                 color = ThemeWhite,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.titleLarge
             )
         }
 
@@ -141,7 +142,7 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
             prefix = { Icon(Icons.Default.Search, contentDescription = null, tint = ThemeWhite, modifier = Modifier.padding(end = 6.dp)) },
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
+                .clip(SoundScapeShapes.comfortable)
                 .testTag("search_text_input"),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = SpotifyMediumGray,
@@ -193,7 +194,7 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.MusicNote, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(64.dp))
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "No songs matching query found", color = SpotifyTextSecondary, fontSize = 14.sp)
+                        Text(text = "No songs matching query found", color = SpotifyTextSecondary, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             } else {
@@ -216,7 +217,7 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(SoundScapeShapes.comfortable)
                                 .background(SpotifyMediumGray)
                                 .clickable { viewModel.playSong(topResult, searchResults) }
                                 .padding(16.dp),
@@ -226,17 +227,16 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
                                 song = topResult,
                                 modifier = Modifier
                                     .size(72.dp)
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .clip(SoundScapeShapes.subtle)
                             )
-                            
+
                             Spacer(modifier = Modifier.width(16.dp))
-                            
+
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = topResult.title,
                                     color = ThemeWhite,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -251,7 +251,7 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .clip(SoundScapeShapes.subtle)
                                         .background(SpotifyDark)
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
@@ -263,22 +263,15 @@ fun SearchScreen(viewModel: MusicViewModel, onProfileClick: () -> Unit) {
                                     )
                                 }
                             }
-                            
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(SpotifyGreen)
-                                    .clickable { viewModel.playSong(topResult, searchResults) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = "Play top result",
-                                    tint = Color.Black,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
+
+                            CircularPlayButton(
+                                onClick = { viewModel.playSong(topResult, searchResults) },
+                                size = 44.dp,
+                                iconSize = 26.dp,
+                                containerColor = SpotifyGreen,
+                                iconColor = Color.Black,
+                                contentDescription = "Play top result"
+                            )
                         }
                     }
 

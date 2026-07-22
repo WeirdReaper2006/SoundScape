@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.mediumShadow
+import com.example.ui.components.CircularPlayButton
 @Composable
 fun PlaylistDetailScreen(
     title: String,
@@ -212,7 +215,7 @@ fun PlaylistDetailScreen(
                         focusedTextColor = ThemeWhite,
                         unfocusedTextColor = ThemeWhite
                     ),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = SoundScapeShapes.comfortable,
                     singleLine = true
                 )
             }
@@ -233,7 +236,7 @@ fun PlaylistDetailScreen(
                             songs = songs,
                             modifier = Modifier
                                 .size(160.dp)
-                                .shadow(12.dp, RoundedCornerShape(8.dp)),
+                                .shadow(12.dp, SoundScapeShapes.comfortable),
                             isLikedSongs = isLikedSongs,
                             isFolderSongs = isFolderSongs
                         )
@@ -245,8 +248,7 @@ fun PlaylistDetailScreen(
                         Text(
                             text = title,
                             color = ThemeWhite,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleLarge
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
@@ -290,7 +292,7 @@ fun PlaylistDetailScreen(
                             DropdownMenu(
                                 expanded = showSortMenu,
                                 onDismissRequest = { showSortMenu = false },
-                                modifier = Modifier.background(SpotifyDark)
+                                modifier = Modifier.mediumShadow(SoundScapeShapes.standard).background(SpotifyDark)
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Default Order", color = if (sortType == "default") MaterialTheme.colorScheme.primary else ThemeWhite) },
@@ -309,30 +311,20 @@ fun PlaylistDetailScreen(
 
                         Spacer(modifier = Modifier.weight(1f))
 
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                                .clickable {
-                                    if (sortedSongs.isNotEmpty()) {
-                                        if (viewModel.isShuffleEnabled) {
-                                            val shuffledSongs = sortedSongs.shuffled()
-                                            viewModel.playSong(shuffledSongs.first(), sortedSongs)
-                                        } else {
-                                            viewModel.playSong(sortedSongs.first(), sortedSongs)
-                                        }
+                        CircularPlayButton(
+                            onClick = {
+                                if (sortedSongs.isNotEmpty()) {
+                                    if (viewModel.isShuffleEnabled) {
+                                        val shuffledSongs = sortedSongs.shuffled()
+                                        viewModel.playSong(shuffledSongs.first(), sortedSongs)
+                                    } else {
+                                        viewModel.playSong(sortedSongs.first(), sortedSongs)
                                     }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = "Play",
-                                tint = Color.Black,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
+                                }
+                            },
+                            size = 56.dp,
+                            iconSize = 32.dp
+                        )
                     }
                 }
 

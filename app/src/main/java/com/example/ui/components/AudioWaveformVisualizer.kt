@@ -84,6 +84,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
 @Composable
 fun AudioWaveformVisualizer(
     isPlaying: Boolean,
@@ -129,7 +130,7 @@ fun AudioWaveformVisualizer(
                 modifier = Modifier
                     .width(4.dp)
                     .height(barHeight)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(SoundScapeShapes.badge)
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(

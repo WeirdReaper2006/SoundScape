@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.heavyShadow
+import com.example.ui.components.SelectablePillButton
 @Composable
 fun EqualizerDialog(
     viewModel: MusicViewModel,
@@ -93,9 +96,10 @@ fun EqualizerDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(8.dp)
+                .heavyShadow(SoundScapeShapes.panel),
             colors = CardDefaults.cardColors(containerColor = SpotifyDark),
-            shape = RoundedCornerShape(16.dp)
+            shape = SoundScapeShapes.panel
         ) {
             Column(
                 modifier = Modifier
@@ -153,7 +157,7 @@ fun EqualizerDialog(
                         .fillMaxWidth()
                         .height(230.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = SoundScapeShapes.panel
                 ) {
                     Column(
                         modifier = Modifier
@@ -230,26 +234,16 @@ fun EqualizerDialog(
                         ) {
                             rowPresets.forEach { (label, presetKey) ->
                                 val isSelected = viewModel.eqActivePreset.equals(presetKey, ignoreCase = true)
-                                Button(
+                                SelectablePillButton(
+                                    text = label,
+                                    selected = isSelected,
                                     onClick = {
                                         viewModel.applyEqualizerPreset(presetKey)
                                     },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2C2C2E),
-                                        contentColor = if (isSelected) Color.Black else ThemeWhite
-                                    ),
-                                    shape = RoundedCornerShape(24.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(40.dp),
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Text(
-                                        text = label,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                    modifier = Modifier.weight(1f),
+                                    height = 40.dp,
+                                    unselectedContentColor = ThemeWhite
+                                )
                             }
                             if (rowPresets.size < 2) {
                                 Spacer(modifier = Modifier.weight(1f))

@@ -90,6 +90,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.mediumShadow
 @Composable
 fun SpotifyScaffold(viewModel: MusicViewModel) {
     val context = LocalContext.current
@@ -157,6 +158,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
             bottomBar = {
                 Column(
                     modifier = Modifier
+                        .mediumShadow()
                         .background(SpotifyBlack)
                         .navigationBarsPadding()
                 ) {

@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.RectangleShape
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.heavyShadow
 @Composable
 fun SpotifySidebar(
     viewModel: MusicViewModel,
@@ -96,6 +99,7 @@ fun SpotifySidebar(
         modifier = Modifier
             .fillMaxHeight()
             .width(320.dp)
+            .heavyShadow(shape = RectangleShape)
             .background(SpotifyDark)
             .statusBarsPadding()
             .navigationBarsPadding()
@@ -140,8 +144,7 @@ fun SpotifySidebar(
                     Text(
                         text = viewModel.userName,
                         color = ThemeWhite,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -186,7 +189,7 @@ fun SpotifySidebar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(SoundScapeShapes.comfortable)
                         .clickable { onClickAction() }
                         .padding(vertical = 12.dp, horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically

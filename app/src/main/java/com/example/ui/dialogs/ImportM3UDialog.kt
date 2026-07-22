@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.heavyShadow
+import com.example.ui.theme.SoundScapeType
 @Composable
 fun ImportM3UDialog(
     viewModel: MusicViewModel,
@@ -97,9 +100,10 @@ fun ImportM3UDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .heavyShadow(SoundScapeShapes.panel),
             colors = CardDefaults.cardColors(containerColor = SpotifyDark),
-            shape = RoundedCornerShape(12.dp)
+            shape = SoundScapeShapes.panel
         ) {
             Column(
                 modifier = Modifier
@@ -116,7 +120,7 @@ fun ImportM3UDialog(
                 Text(
                     text = "Scanning directory: ${viewModel.musicPath}",
                     color = SpotifyTextSecondary,
-                    fontSize = 12.sp
+                    style = SoundScapeType.small
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 

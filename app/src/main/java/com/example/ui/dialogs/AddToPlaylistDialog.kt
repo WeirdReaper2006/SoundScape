@@ -84,6 +84,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.heavyShadow
 @Composable
 fun AddToPlaylistDialog(
     song: Song,
@@ -96,9 +98,10 @@ fun AddToPlaylistDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .heavyShadow(SoundScapeShapes.panel),
             colors = CardDefaults.cardColors(containerColor = SpotifyDark),
-            shape = RoundedCornerShape(12.dp)
+            shape = SoundScapeShapes.panel
         ) {
             Column(
                 modifier = Modifier

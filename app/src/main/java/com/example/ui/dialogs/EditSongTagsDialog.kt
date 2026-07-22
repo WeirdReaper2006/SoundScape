@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.heavyShadow
+import com.example.ui.components.DarkPillButton
 @Composable
 fun EditSongTagsDialog(
     song: Song,
@@ -103,9 +106,10 @@ fun EditSongTagsDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .heavyShadow(SoundScapeShapes.panel),
             colors = CardDefaults.cardColors(containerColor = SpotifyDark),
-            shape = RoundedCornerShape(12.dp)
+            shape = SoundScapeShapes.panel
         ) {
             Column(
                 modifier = Modifier
@@ -191,13 +195,12 @@ fun EditSongTagsDialog(
                         Text("Cancel", color = ThemeWhite)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    DarkPillButton(
+                        text = "Save",
                         onClick = { onConfirm(title, artist, album) },
-                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-                        enabled = isMetadataValid
-                    ) {
-                        Text("Save", color = SpotifyDark, fontWeight = FontWeight.Bold)
-                    }
+                        enabled = isMetadataValid,
+                        contentColor = SpotifyDark
+                    )
                 }
             }
         }

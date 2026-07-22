@@ -84,6 +84,11 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.components.DarkLargePillButton
+import com.example.ui.components.DarkPillButton
+import com.example.ui.components.SelectablePillButton
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.SoundScapeType
 @Composable
 fun ProfileSettingsScreen(
     viewModel: MusicViewModel,
@@ -202,7 +207,8 @@ fun ProfileSettingsScreen(
                         Text("Cancel", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Button(
+                    DarkPillButton(
+                        text = "Save",
                         onClick = {
                             if (isFormValid) {
                                 val finalPath = when (pathType) {
@@ -217,18 +223,8 @@ fun ProfileSettingsScreen(
                             }
                         },
                         enabled = isFormValid,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SpotifyGreen,
-                            disabledContainerColor = SpotifyLightGray.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(24.dp)
-                    ) {
-                        Text(
-                            text = "Save",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                        disabledContainerColor = SpotifyLightGray.copy(alpha = 0.3f)
+                    )
                 }
             } else {
                 // Header Bar for Sub-Pages
@@ -325,26 +321,15 @@ private fun SettingsMainMenuList(context: Context, onNavigate: (String) -> Unit)
             Text(
                 text = "Free account",
                 color = SpotifyTextSecondary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                style = SoundScapeType.captionBold
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Button(
+            DarkPillButton(
+                text = "GO PREMIUM",
                 onClick = {
                     Toast.makeText(context, "SoundScape Premium is currently in beta! Enjoy all free features.", Toast.LENGTH_SHORT).show()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
-                shape = RoundedCornerShape(24.dp),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 10.dp)
-            ) {
-                Text(
-                    text = "GO PREMIUM",
-                    color = Color.Black,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-            }
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -435,8 +420,7 @@ private fun AccountSettingsSection(
     Text(
         text = "App Theme Preset",
         color = ThemeWhite,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Bold
+        style = SoundScapeType.captionBold
     )
 
     // Theme Presets Grid / Rows
@@ -462,12 +446,12 @@ private fun AccountSettingsSection(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(SoundScapeShapes.comfortable)
                             .background(if (isSelected) color.copy(alpha = 0.25f) else SpotifyBlack)
                             .border(
                                 width = 1.5.dp,
                                 color = if (isSelected) color else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
+                                shape = SoundScapeShapes.comfortable
                             )
                             .clickable { onThemePresetChange(key) }
                             .padding(10.dp),
@@ -504,12 +488,12 @@ private fun AccountSettingsSection(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(SoundScapeShapes.comfortable)
             .background(if (isCustomSelected) SpotifyGreen.copy(alpha = 0.1f) else SpotifyBlack)
             .border(
                 width = 1.5.dp,
                 color = if (isCustomSelected) SpotifyGreen else Color.Transparent,
-                shape = RoundedCornerShape(8.dp)
+                shape = SoundScapeShapes.comfortable
             )
             .clickable { onThemePresetChange("custom") }
             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -527,8 +511,7 @@ private fun AccountSettingsSection(
         Text(
             text = "Customize Theme Color",
             color = ThemeWhite,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold
+            style = SoundScapeType.smallBold
         )
     }
 
@@ -578,7 +561,7 @@ private fun AccountSettingsSection(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(SoundScapeShapes.comfortable)
             .background(SpotifyBlack)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -596,8 +579,7 @@ private fun AccountSettingsSection(
                 Text(
                     text = "Appearance Mode",
                     color = ThemeWhite,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    style = SoundScapeType.smallBold
                 )
                 Text(
                     text = if (selectedIsDark) "Dark Mode" else "Light Mode",
@@ -624,14 +606,13 @@ private fun AccountSettingsSection(
     Text(
         text = "Folder Scanning & Location",
         color = ThemeWhite,
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Bold
+        style = SoundScapeType.captionBold
     )
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(SoundScapeShapes.comfortable)
             .background(SpotifyBlack)
             .padding(4.dp)
     ) {
@@ -661,18 +642,15 @@ private fun AccountSettingsSection(
     }
 
     // Document Tree File Explorer Action Button for Settings Screen
-    Button(
+    DarkLargePillButton(
+        text = "Select via File Explorer",
         onClick = onPickFolder,
-        colors = ButtonDefaults.buttonColors(containerColor = SpotifyBlack),
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-    ) {
-        Icon(Icons.Filled.Folder, contentDescription = "Folder Picker", tint = SpotifyGreen)
-        Spacer(modifier = Modifier.width(10.dp))
-        Text("Select via File Explorer", color = ThemeWhite, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-    }
+        modifier = Modifier.fillMaxWidth(),
+        height = 48.dp,
+        containerColor = SpotifyBlack,
+        contentColor = ThemeWhite,
+        leadingIcon = Icons.Filled.Folder
+    )
 
     if (pathType == "Custom Folder") {
         OutlinedTextField(
@@ -700,7 +678,7 @@ private fun AccountSettingsSection(
 @Composable
 private fun PlaybackSettingsSection(viewModel: MusicViewModel) {
     // Header 1: Track transitions
-    Text("Track transitions", color = ThemeWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    Text("Track transitions", color = ThemeWhite, style = SoundScapeType.captionBold)
 
     // Gapless playback Switch
     Row(
@@ -786,7 +764,7 @@ private fun PlaybackSettingsSection(viewModel: MusicViewModel) {
     HorizontalDivider(color = SpotifyLightGray.copy(alpha = 0.2f))
 
     // Header 2: Listening controls
-    Text("Listening controls", color = ThemeWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    Text("Listening controls", color = ThemeWhite, style = SoundScapeType.captionBold)
 
     // Mono audio Switch
     Row(
@@ -925,26 +903,15 @@ private fun EqualizerSettingsSection(viewModel: MusicViewModel) {
             ) {
                 rowPresets.forEach { (label, presetKey) ->
                     val isSelected = viewModel.eqActivePreset.equals(presetKey, ignoreCase = true)
-                    Button(
+                    SelectablePillButton(
+                        text = label,
+                        selected = isSelected,
                         onClick = {
                             viewModel.applyEqualizerPreset(presetKey)
                         },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2C2C2E),
-                            contentColor = if (isSelected) Color.Black else ThemeWhite
-                        ),
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                        modifier = Modifier.weight(1f),
+                        height = 48.dp
+                    )
                 }
                 // If odd number, add spacer placeholder
                 if (rowPresets.size < 2) {
@@ -971,8 +938,7 @@ private fun EqualizerSettingsSection(viewModel: MusicViewModel) {
     Text(
         text = presetDesc,
         color = SpotifyTextSecondary,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Normal,
+        style = SoundScapeType.small,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp),
@@ -988,8 +954,8 @@ private fun AboutSettingsSection(context: Context) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Version", color = ThemeWhite, fontSize = 14.sp)
-        Text("SoundScape v${BuildConfig.VERSION_NAME}", color = SpotifyTextSecondary, fontSize = 14.sp)
+        Text("Version", color = ThemeWhite, style = MaterialTheme.typography.bodySmall)
+        Text("SoundScape v${BuildConfig.VERSION_NAME}", color = SpotifyTextSecondary, style = MaterialTheme.typography.bodySmall)
     }
 
     // Player Release
@@ -998,8 +964,8 @@ private fun AboutSettingsSection(context: Context) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Player Release", color = ThemeWhite, fontSize = 14.sp)
-        Text("2", color = SpotifyTextSecondary, fontSize = 14.sp)
+        Text("Player Release", color = ThemeWhite, style = MaterialTheme.typography.bodySmall)
+        Text("2", color = SpotifyTextSecondary, style = MaterialTheme.typography.bodySmall)
     }
 
     HorizontalDivider(color = SpotifyLightGray.copy(alpha = 0.2f))
@@ -1015,7 +981,7 @@ private fun AboutSettingsSection(context: Context) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Privacy Policy", color = ThemeWhite, fontSize = 14.sp)
+        Text("Privacy Policy", color = ThemeWhite, style = MaterialTheme.typography.bodySmall)
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(16.dp))
     }
 
@@ -1030,7 +996,7 @@ private fun AboutSettingsSection(context: Context) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Third-party licences", color = ThemeWhite, fontSize = 14.sp)
+        Text("Third-party licences", color = ThemeWhite, style = MaterialTheme.typography.bodySmall)
     }
 
     // Terms of Use
@@ -1044,7 +1010,7 @@ private fun AboutSettingsSection(context: Context) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Terms of Use", color = ThemeWhite, fontSize = 14.sp)
+        Text("Terms of Use", color = ThemeWhite, style = MaterialTheme.typography.bodySmall)
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(16.dp))
     }
 
@@ -1059,7 +1025,7 @@ private fun AboutSettingsSection(context: Context) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Platform Rules", color = ThemeWhite, fontSize = 14.sp)
+        Text("Platform Rules", color = ThemeWhite, style = MaterialTheme.typography.bodySmall)
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(16.dp))
     }
 
@@ -1074,7 +1040,7 @@ private fun AboutSettingsSection(context: Context) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Support", color = ThemeWhite, fontSize = 14.sp)
+        Text("Support", color = ThemeWhite, style = MaterialTheme.typography.bodySmall)
         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(16.dp))
     }
 }

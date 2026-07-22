@@ -84,6 +84,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
 @Composable
 fun LibraryScreen(
     viewModel: MusicViewModel,
@@ -139,8 +140,7 @@ fun LibraryScreen(
                 Text(
                     text = "Your Library",
                     color = ThemeWhite,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleLarge
                 )
             }
  
@@ -216,7 +216,7 @@ fun LibraryScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(SoundScapeShapes.comfortable)
                         .clickable { onVirtualPlaylistClick(key) }
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -225,7 +225,7 @@ fun LibraryScreen(
                         songs = if (key == "liked_songs") favoriteList else viewModel.allSongs,
                         modifier = Modifier
                             .size(64.dp)
-                            .clip(RoundedCornerShape(6.dp)),
+                            .clip(SoundScapeShapes.standard),
                         isLikedSongs = (key == "liked_songs"),
                         isFolderSongs = (key == "folder_songs")
                     )
@@ -236,8 +236,7 @@ fun LibraryScreen(
                         Text(
                             text = name,
                             color = ThemeWhite,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.bodyLarge
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {

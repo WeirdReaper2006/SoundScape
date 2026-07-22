@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.heavyShadow
+import com.example.ui.components.DarkPillButton
 @Composable
 fun CreatePlaylistDialog(
     onDismiss: () -> Unit,
@@ -95,9 +98,10 @@ fun CreatePlaylistDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .heavyShadow(SoundScapeShapes.panel),
             colors = CardDefaults.cardColors(containerColor = SpotifyDark),
-            shape = RoundedCornerShape(12.dp)
+            shape = SoundScapeShapes.panel
         ) {
             Column(
                 modifier = Modifier
@@ -138,13 +142,11 @@ fun CreatePlaylistDialog(
                         Text(text = "Cancel", color = ThemeWhite)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    DarkPillButton(
+                        text = "Create",
                         onClick = { onConfirm(textValue) },
-                        colors = ButtonDefaults.buttonColors(containerColor = SpotifyGreen),
                         enabled = InputValidator.validatePlaylistName(textValue) is InputValidator.ValidationResult.Valid
-                    ) {
-                        Text(text = "Create", color = Color.Black)
-                    }
+                    )
                 }
             }
         }

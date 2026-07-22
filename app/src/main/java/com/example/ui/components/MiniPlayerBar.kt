@@ -84,6 +84,10 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.SoundScapeType
+import com.example.ui.theme.mediumShadow
+import com.example.ui.components.CircularPlayButton
 @Composable
 fun MiniPlayerBar(
     song: Song,
@@ -100,7 +104,8 @@ fun MiniPlayerBar(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .mediumShadow(SoundScapeShapes.comfortable)
+            .clip(SoundScapeShapes.comfortable)
             .background(SpotifyMediumGray)
             .clickable { onBarClick() }
             .testTag("mini_player_bar")
@@ -120,7 +125,7 @@ fun MiniPlayerBar(
                     song = song,
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(SoundScapeShapes.subtle)
                         .background(SpotifyLightGray)
                 )
 
@@ -130,15 +135,14 @@ fun MiniPlayerBar(
                     Text(
                         text = song.title,
                         color = ThemeWhite,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = SoundScapeType.captionBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = song.artist,
                         color = SpotifyTextSecondary,
-                        fontSize = 12.sp,
+                        style = SoundScapeType.small,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -146,17 +150,16 @@ fun MiniPlayerBar(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
+                CircularPlayButton(
                     onClick = onPlayPauseToggle,
-                    modifier = Modifier.testTag("mini_play_pause")
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = "Play or pause",
-                        tint = ThemeWhite,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
+                    isPlaying = isPlaying,
+                    size = 48.dp,
+                    iconSize = 28.dp,
+                    containerColor = Color.Transparent,
+                    iconColor = ThemeWhite,
+                    contentDescription = "Play or pause",
+                    testTag = "mini_play_pause"
+                )
 
                 IconButton(
                     onClick = onSkipNext,

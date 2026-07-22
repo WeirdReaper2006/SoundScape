@@ -169,8 +169,7 @@ fun SoundScapeArtwork(
             Text(
                 text = if (firstLetter.isNotEmpty() && firstLetter.all { it.isLetterOrDigit() }) firstLetter else "🎵",
                 color = Color.White.copy(alpha = 0.9f),
-                fontWeight = FontWeight.Bold,
-                fontSize = (modifier.toString().hashCode().let { 16.sp }), // safe default font size
+                style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center
             )
         }

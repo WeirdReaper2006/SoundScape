@@ -84,6 +84,10 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.SoundScapeType
+import com.example.ui.theme.mediumShadow
+import com.example.ui.components.CircularPlayButton
 @Composable
 fun ExpandedPlayerScreen(
     song: Song,
@@ -308,8 +312,8 @@ fun ExpandedPlayerScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = stampCurrent, color = SpotifyTextSecondary, fontSize = 12.sp)
-            Text(text = stampTotal, color = SpotifyTextSecondary, fontSize = 12.sp)
+            Text(text = stampCurrent, color = SpotifyTextSecondary, style = SoundScapeType.small)
+            Text(text = stampTotal, color = SpotifyTextSecondary, style = SoundScapeType.small)
         }
 
         Spacer(modifier = Modifier.weight(0.1f))
@@ -340,22 +344,16 @@ fun ExpandedPlayerScreen(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .size(68.dp)
-                    .clip(CircleShape)
-                    .background(ThemeWhite)
-                    .clickable { viewModel.togglePlayPause() }
-                    .testTag("btn_play_pause"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = "PlayPause large trigger",
-                    tint = SpotifyBlack,
-                    modifier = Modifier.size(36.dp)
-                )
-            }
+            CircularPlayButton(
+                onClick = { viewModel.togglePlayPause() },
+                isPlaying = isPlaying,
+                size = 68.dp,
+                iconSize = 36.dp,
+                containerColor = ThemeWhite,
+                iconColor = SpotifyBlack,
+                contentDescription = "PlayPause large trigger",
+                testTag = "btn_play_pause"
+            )
 
             IconButton(
                 onClick = { viewModel.playNext() },
@@ -402,7 +400,7 @@ fun ExpandedPlayerScreen(
                         contentColor = ThemeWhite
                     ),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = SoundScapeShapes.panel,
                     modifier = Modifier.testTag("btn_speed_control")
                 ) {
                     Icon(
@@ -414,15 +412,14 @@ fun ExpandedPlayerScreen(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "${viewModel.playbackSpeed}x",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        style = SoundScapeType.smallBold
                     )
                 }
 
                 DropdownMenu(
                     expanded = showSpeedMenu,
                     onDismissRequest = { showSpeedMenu = false },
-                    modifier = Modifier.background(SpotifyDark)
+                    modifier = Modifier.mediumShadow(SoundScapeShapes.standard).background(SpotifyDark)
                 ) {
                     val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
                     speeds.forEach { speed ->
@@ -447,7 +444,7 @@ fun ExpandedPlayerScreen(
                         contentColor = if (viewModel.sleepTimerMinsLeft > 0) SpotifyGreen else ThemeWhite
                     ),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = SoundScapeShapes.panel,
                     modifier = Modifier.testTag("btn_sleep_timer")
                 ) {
                     Icon(
@@ -465,15 +462,14 @@ fun ExpandedPlayerScreen(
                         } else {
                             "Off"
                         },
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        style = SoundScapeType.smallBold
                     )
                 }
 
                 DropdownMenu(
                     expanded = showSleepTimerMenu,
                     onDismissRequest = { showSleepTimerMenu = false },
-                    modifier = Modifier.background(SpotifyDark)
+                    modifier = Modifier.mediumShadow(SoundScapeShapes.standard).background(SpotifyDark)
                 ) {
                     val timerOptions = listOf(
                         0 to "Off",
@@ -509,7 +505,7 @@ fun ExpandedPlayerScreen(
                         contentColor = if (viewModel.eqEnabled || viewModel.bbEnabled) SpotifyGreen else ThemeWhite
                     ),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = SoundScapeShapes.panel,
                     modifier = Modifier.testTag("btn_equalizer")
                 ) {
                     Icon(
@@ -521,8 +517,7 @@ fun ExpandedPlayerScreen(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "EQ",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        style = SoundScapeType.smallBold
                     )
                 }
 

@@ -134,7 +134,7 @@ fun RecentsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.AccessTime, contentDescription = null, tint = SpotifyTextSecondary, modifier = Modifier.size(64.dp))
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "No play history recorded yet", color = SpotifyTextSecondary, fontSize = 14.sp)
+                    Text(text = "No play history recorded yet", color = SpotifyTextSecondary, style = MaterialTheme.typography.bodySmall)
                 }
             }
         } else {

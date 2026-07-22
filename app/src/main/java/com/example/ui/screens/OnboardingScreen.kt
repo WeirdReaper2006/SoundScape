@@ -84,6 +84,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.components.DarkLargePillButton
+import com.example.ui.theme.SoundScapeShapes
 @Composable
 fun OnboardingScreen(onComplete: (String, String) -> Unit) {
     val context = LocalContext.current
@@ -199,7 +201,7 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(SoundScapeShapes.comfortable)
                     .background(SpotifyMediumGray)
                     .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -230,18 +232,15 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
             }
 
             // Document Tree File Explorer Action Sizing Button
-            Button(
+            DarkLargePillButton(
+                text = "Select via File Explorer",
                 onClick = { pickerLauncher.launch(null) },
-                colors = ButtonDefaults.buttonColors(containerColor = SpotifyMediumGray),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                Icon(Icons.Filled.Folder, contentDescription = "Folder Picker", tint = SpotifyGreen)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text("Select via File Explorer", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            }
+                modifier = Modifier.fillMaxWidth(),
+                height = 48.dp,
+                containerColor = SpotifyMediumGray,
+                contentColor = Color.White,
+                leadingIcon = Icons.Filled.Folder
+            )
 
             // Custom Suffix Folder Text Input
             if (pathType == "Custom Folder") {
@@ -274,7 +273,8 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
+            DarkLargePillButton(
+                text = "Continue",
                 onClick = {
                     val cleanedName = nameInput.trim()
                     val finalName = if (cleanedName.length >= 2) cleanedName else "Offline Listener"
@@ -287,23 +287,11 @@ fun OnboardingScreen(onComplete: (String, String) -> Unit) {
                     onComplete(finalName, finalPath)
                 },
                 enabled = isFormValid,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SpotifyGreen,
-                    disabledContainerColor = SpotifyLightGray
-                ),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("onboarding_start_button")
-            ) {
-                Text(
-                    text = "Continue",
-                    color = Color.Black,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-            }
+                modifier = Modifier.fillMaxWidth(),
+                height = 50.dp,
+                disabledContainerColor = SpotifyLightGray,
+                testTag = "onboarding_start_button"
+            )
 
             Spacer(modifier = Modifier.height(4.dp))
 

@@ -84,6 +84,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.mediumShadow
 @Composable
 fun LibrarySongGridItem(
     song: Song,
@@ -97,7 +99,8 @@ fun LibrarySongGridItem(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .mediumShadow(SoundScapeShapes.comfortable)
+            .clip(SoundScapeShapes.comfortable)
             .background(SpotifyMediumGray)
             .clickable { onClick() }
             .padding(10.dp),
@@ -107,7 +110,7 @@ fun LibrarySongGridItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(SoundScapeShapes.standard)
         ) {
             SoundScapeArtwork(
                 song = song,
@@ -157,7 +160,7 @@ fun LibrarySongGridItem(
                 DropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
-                    modifier = Modifier.background(SpotifyDark)
+                    modifier = Modifier.mediumShadow().background(SpotifyDark)
                 ) {
                     DropdownMenuItem(
                         text = { Text("Add to Queue", color = ThemeWhite) },
@@ -202,7 +205,7 @@ fun PlaylistLibraryItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(SoundScapeShapes.comfortable)
             .clickable { onClick() }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -211,17 +214,16 @@ fun PlaylistLibraryItem(
             songs = songs,
             modifier = Modifier
                 .size(64.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .clip(SoundScapeShapes.standard)
         )
-        
+
         Spacer(modifier = Modifier.width(16.dp))
-        
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = name,
                 color = ThemeWhite,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.bodyLarge
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(

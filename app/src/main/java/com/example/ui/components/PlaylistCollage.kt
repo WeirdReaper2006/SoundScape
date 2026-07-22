@@ -84,6 +84,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
 @Composable
 fun PlaylistCollage(
     songs: List<Song>,
@@ -94,7 +95,7 @@ fun PlaylistCollage(
     if (songs.size >= 4) {
         Box(
             modifier = modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(SoundScapeShapes.comfortable)
                 .aspectRatio(1f)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -120,13 +121,13 @@ fun PlaylistCollage(
         SoundScapeArtwork(
             song = songs[0],
             modifier = modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(SoundScapeShapes.comfortable)
                 .aspectRatio(1f)
         )
     } else {
         Box(
             modifier = modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(SoundScapeShapes.comfortable)
                 .background(
                     brush = when {
                         isLikedSongs -> Brush.linearGradient(listOf(Color(0xFF4F2FE3), Color(0xFF8097E4)))

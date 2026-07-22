@@ -84,6 +84,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.shadow
+import com.example.ui.theme.SoundScapeShapes
+import com.example.ui.theme.heavyShadow
+import com.example.ui.theme.SoundScapeType
 @Composable
 fun QueueOverlay(
     viewModel: MusicViewModel,
@@ -103,6 +106,7 @@ fun QueueOverlay(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .heavyShadow(SoundScapeShapes.comfortable)
             .background(SpotifyBlack)
             .statusBarsPadding()
             .navigationBarsPadding()
@@ -130,8 +134,7 @@ fun QueueOverlay(
         Text(
             text = "Now Playing",
             color = SpotifyTextSecondary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
+            style = MaterialTheme.typography.labelMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -139,7 +142,7 @@ fun QueueOverlay(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(SoundScapeShapes.comfortable)
                     .background(SpotifyMediumGray)
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -148,7 +151,7 @@ fun QueueOverlay(
                     song = currentSong,
                     modifier = Modifier
                         .size(52.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(SoundScapeShapes.subtle)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -197,8 +200,7 @@ fun QueueOverlay(
             Text(
                 text = "Next In Queue (${upcomingQueue.size} songs)",
                 color = ThemeWhite,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.bodyLarge
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -227,7 +229,7 @@ fun QueueOverlay(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(SoundScapeShapes.standard)
                             .background(SpotifyMediumGray)
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -237,14 +239,14 @@ fun QueueOverlay(
                             Text(
                                 text = "${index + 1}",
                                 color = SpotifyTextSecondary,
-                                fontSize = 12.sp,
+                                style = SoundScapeType.small,
                                 modifier = Modifier.width(20.dp)
                             )
                             SoundScapeArtwork(
                                 song = song,
                                 modifier = Modifier
                                     .size(44.dp)
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .clip(SoundScapeShapes.subtle)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
