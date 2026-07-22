@@ -146,9 +146,22 @@ fun ProfileSettingsScreen(
     // Multi-page settings navigation state
     var activeSubPage by remember { mutableStateOf<String?>(null) }
 
+    // Guards against rapid repeated taps racing sub-page navigation/back/dismiss actions in this
+    // screen, mirroring SpotifyScaffold's guardedNav (this screen has its own back-handling scope
+    // with no access to that one).
+    var lastSettingsNavActionTime by remember { mutableStateOf(0L) }
+    val settingsNavGuardMs = 400L
+    fun guardedSettingsNav(action: () -> Unit) {
+        val now = System.currentTimeMillis()
+        if (now - lastSettingsNavActionTime >= settingsNavGuardMs) {
+            lastSettingsNavActionTime = now
+            action()
+        }
+    }
+
     // Intercept system back gestures on sub-pages
     BackHandler(enabled = activeSubPage != null) {
-        activeSubPage = null
+        guardedSettingsNav { activeSubPage = null }
     }
 
     Surface(
@@ -169,7 +182,7 @@ fun ProfileSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { onDismiss(false) }) {
+                    IconButton(onClick = { guardedSettingsNav { onDismiss(false) } }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
@@ -190,7 +203,7 @@ fun ProfileSettingsScreen(
                 // Main Settings Scrollable List
                 SettingsMainMenuList(
                     context = context,
-                    onNavigate = { activeSubPage = it }
+                    onNavigate = { guardedSettingsNav { activeSubPage = it } }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -203,7 +216,7 @@ fun ProfileSettingsScreen(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { onDismiss(false) }) {
+                    TextButton(onClick = { guardedSettingsNav { onDismiss(false) } }) {
                         Text("Cancel", color = ThemeWhite, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(modifier = Modifier.width(12.dp))
@@ -240,7 +253,7 @@ fun ProfileSettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { activeSubPage = null }) {
+                    IconButton(onClick = { guardedSettingsNav { activeSubPage = null } }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",

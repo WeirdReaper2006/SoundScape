@@ -137,15 +137,15 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     // Real-time cohesive back and navigation routing interceptor
     BackHandler(enabled = drawerState.isOpen || isExpandedPlayerVisible || showQueueOverlay || showProfileSettingsDialog || onNonTabsRoute || viewModel.activeTabIndex != 0) {
         when {
-            drawerState.isOpen -> coroutineScope.launch { drawerState.close() }
-            showQueueOverlay -> showQueueOverlay = false
-            showProfileSettingsDialog -> {
+            drawerState.isOpen -> guardedNav { coroutineScope.launch { drawerState.close() } }
+            showQueueOverlay -> guardedNav { showQueueOverlay = false }
+            showProfileSettingsDialog -> guardedNav {
                 viewModel.previewTheme(viewModel.themePreset, viewModel.themeIsDark, viewModel.themeCustomColor)
                 showProfileSettingsDialog = false
             }
-            isExpandedPlayerVisible -> isExpandedPlayerVisible = false
-            onNonTabsRoute -> navController.popBackStack()
-            viewModel.activeTabIndex != 0 -> viewModel.activeTabIndex = 0
+            isExpandedPlayerVisible -> guardedNav { isExpandedPlayerVisible = false }
+            onNonTabsRoute -> guardedNav { navController.popBackStack() }
+            viewModel.activeTabIndex != 0 -> guardedNav { viewModel.activeTabIndex = 0 }
         }
     }
 
@@ -272,7 +272,14 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         )
                     )
             ) {
-                NavHost(navController = navController, startDestination = "tabs") {
+                NavHost(
+                    navController = navController,
+                    startDestination = "tabs",
+                    enterTransition = { slideInHorizontally(initialOffsetX = { it }) },
+                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 4 }) },
+                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 4 }) },
+                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) }
+                ) {
                     composable("tabs") {
                         when (viewModel.activeTabIndex) {
                             0 -> HomeScreen(
@@ -297,7 +304,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         "playlist_detail/{playlistId}",
                         arguments = listOf(navArgument("playlistId") { type = NavType.LongType })
                     ) { backStackEntry ->
-                        val playlistId = backStackEntry.arguments!!.getLong("playlistId")
+                        val playlistId = backStackEntry.arguments?.getLong("playlistId") ?: return@composable
                         val playlist = playlists.find { it.id == playlistId }
                         val playlistSongs by viewModel.getPlaylistSongs(playlistId).collectAsStateWithLifecycle(emptyList())
                         PlaylistDetailScreen(
@@ -312,7 +319,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                         "virtual_playlist/{type}",
                         arguments = listOf(navArgument("type") { type = NavType.StringType })
                     ) { backStackEntry ->
-                        val virtualPlaylistType = backStackEntry.arguments!!.getString("type")
+                        val virtualPlaylistType = backStackEntry.arguments?.getString("type") ?: return@composable
                         val title = if (virtualPlaylistType == "liked_songs") "Liked Songs" else {
                             when (viewModel.musicPath) {
                                 "Music" -> "Music Folder"
@@ -358,8 +365,8 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                 ExpandedPlayerScreen(
                     song = song,
                     viewModel = viewModel,
-                    onMinimize = { isExpandedPlayerVisible = false },
-                    onViewQueueClick = { showQueueOverlay = true }
+                    onMinimize = { guardedNav { isExpandedPlayerVisible = false } },
+                    onViewQueueClick = { guardedNav { showQueueOverlay = true } }
                 )
             }
         }
@@ -412,9 +419,11 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
             ProfileSettingsScreen(
                 viewModel = viewModel,
                 onDismiss = { saved ->
-                    showProfileSettingsDialog = false
-                    if (!saved) {
-                        viewModel.previewTheme(originalPreset, originalIsDark, originalCustomColor)
+                    guardedNav {
+                        showProfileSettingsDialog = false
+                        if (!saved) {
+                            viewModel.previewTheme(originalPreset, originalIsDark, originalCustomColor)
+                        }
                     }
                 }
             )
@@ -434,7 +443,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
         ) {
             QueueOverlay(
                 viewModel = viewModel,
-                onDismiss = { showQueueOverlay = false }
+                onDismiss = { guardedNav { showQueueOverlay = false } }
             )
         }
 
