@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -87,7 +88,7 @@ import androidx.compose.ui.draw.shadow
 
 val SpotifyGreen: Color @Composable get() = MaterialTheme.colorScheme.primary
 val SpotifyBlack: Color @Composable get() = MaterialTheme.colorScheme.background
-val SpotifyDark: Color @Composable get() = if (MaterialTheme.colorScheme.background.red + MaterialTheme.colorScheme.background.green + MaterialTheme.colorScheme.background.blue > 1.5f) Color(0xFFE9ECEF) else MaterialTheme.colorScheme.background
+val SpotifyDark: Color @Composable get() = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color(0xFFE9ECEF) else MaterialTheme.colorScheme.background
 val SpotifyMediumGray: Color @Composable get() = MaterialTheme.colorScheme.surface
 val SpotifyLightGray: Color @Composable get() = MaterialTheme.colorScheme.tertiary
 val SpotifyTextSecondary: Color @Composable get() = MaterialTheme.colorScheme.secondary

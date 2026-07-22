@@ -15,7 +15,7 @@ fun SoundScapeTheme(
 ) {
     // Get the primary color of the selected theme
     val primaryColor = when (themePreset) {
-        "green" -> Color(0xFF1DB954)
+        "green" -> SpotifyGreen
         "sunset" -> Color(0xFFFF9800)
         "blue" -> Color(0xFF2979FF)
         "violet" -> Color(0xFF9C27B0)
@@ -27,25 +27,25 @@ fun SoundScapeTheme(
                 Color(0xFF00E5FF) // default slate teal
             }
         }
-        else -> Color(0xFF1DB954)
+        else -> SpotifyGreen
     }
 
     val colorScheme = if (isDark) {
         val darkBg = when (themePreset) {
-            "green" -> Color(0xFF0B0E0C)
+            "green" -> SpotifyDark
             "sunset" -> Color(0xFF100E0A)
             "blue" -> Color(0xFF0B0C11)
             "violet" -> Color(0xFF0D0A11)
             "crimson" -> Color(0xFF110A0C)
-            else -> Color(0xFF121212)
+            else -> SpotifyDark
         }
         val darkSurface = when (themePreset) {
-            "green" -> Color(0xFF141A16)
+            "green" -> SurfaceCard
             "sunset" -> Color(0xFF1C1812)
             "blue" -> Color(0xFF131520)
             "violet" -> Color(0xFF181320)
             "crimson" -> Color(0xFF1C1315)
-            else -> Color(0xFF1E1E1E)
+            else -> SpotifyMediumGray
         }
         darkColorScheme(
             primary = primaryColor,
@@ -86,6 +86,7 @@ fun SoundScapeTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = SoundScapeMaterialShapes,
         content = content
     )
 }
