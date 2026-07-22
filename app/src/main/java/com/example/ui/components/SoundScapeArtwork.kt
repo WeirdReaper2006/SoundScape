@@ -108,7 +108,7 @@ fun getEmbeddedPicture(context: android.content.Context, path: String): ByteArra
 @Composable
 fun rememberAlbumArt(song: Song): Any? {
     val context = LocalContext.current
-    return produceState<Any?>(initialValue = R.drawable.ic_launcher_foreground, key1 = song.id, key2 = song.path, key3 = song.albumArtUri) {
+    return produceState<Any?>(initialValue = R.mipmap.ic_launcher_foreground, key1 = song.id, key2 = song.path, key3 = song.albumArtUri) {
         if (!song.albumArtUri.isNullOrBlank()) {
             value = song.albumArtUri
         } else if (song.isLocal) {
@@ -118,10 +118,10 @@ fun rememberAlbumArt(song: Song): Any? {
             if (bytes != null) {
                 value = bytes
             } else {
-                value = R.drawable.ic_launcher_foreground
+                value = R.mipmap.ic_launcher_foreground
             }
         } else {
-            value = R.drawable.ic_launcher_foreground
+            value = R.mipmap.ic_launcher_foreground
         }
     }.value
 }
@@ -134,7 +134,7 @@ fun SoundScapeArtwork(
     var isError by remember(song?.id) { mutableStateOf(false) }
     val albumArtData = song?.let { rememberAlbumArt(it) }
 
-    if (song == null || isError || albumArtData == null || albumArtData == R.drawable.ic_launcher_foreground) {
+    if (song == null || isError || albumArtData == null || albumArtData == R.mipmap.ic_launcher_foreground) {
         val title = song?.title ?: "Unknown"
         val artist = song?.artist ?: "Track"
         
