@@ -1,7 +1,6 @@
 package com.example
 
 import android.content.Intent
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.OptIn
@@ -12,6 +11,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.RenderersFactory
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -29,12 +29,15 @@ import kotlinx.coroutines.launch
 class MusicService : MediaSessionService() {
 
     private var mediaSession: MediaSession? = null
-    private var player: ExoPlayer? = null
+    private lateinit var crossfadePlayerController: CrossfadePlayerController
+    private lateinit var routingPlayer: RoutingPlayer
 
-    private var equalizer: android.media.audiofx.Equalizer? = null
-    private var bassBoost: android.media.audiofx.BassBoost? = null
+    private data class AudioEffectsPair(
+        var equalizer: android.media.audiofx.Equalizer?,
+        var bassBoost: android.media.audiofx.BassBoost?
+    )
+    private val effectsBySessionId = mutableMapOf<Int, AudioEffectsPair>()
 
-    private val monoAudioProcessor = MonoAudioProcessor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var hasAutomixedCurrentTrack = false
     private var hasRecordedCurrentTrack = false
@@ -61,31 +64,26 @@ class MusicService : MediaSessionService() {
             .setUsage(C.USAGE_MEDIA)
             .build()
 
-        val renderersFactory = object : DefaultRenderersFactory(this) {
-            override fun buildAudioSink(
-                context: android.content.Context,
-                enableFloatOutput: Boolean,
-                enableAudioTrackPlaybackParams: Boolean
-            ): androidx.media3.exoplayer.audio.AudioSink? {
-                val processors = arrayOf<androidx.media3.common.audio.AudioProcessor>(monoAudioProcessor)
-                return DefaultAudioSink.Builder(context)
-                    .setAudioProcessors(processors)
-                    .build()
-            }
-        }
-            
-        player = ExoPlayer.Builder(this, renderersFactory)
-            .setAudioAttributes(audioAttributes, true) // Handles auto-pauses/resumes on call interruptions
-            .setHandleAudioBecomingNoisy(true) // Pauses automatically when headphones are unplugged
-            .build()
-
-        player?.addListener(object : Player.Listener {
-            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+        crossfadePlayerController = CrossfadePlayerController(
+            context = this,
+            scope = serviceScope,
+            buildRenderersFactory = ::buildRenderersFactory,
+            audioAttributes = audioAttributes,
+            onCanonicalPlayerChanged = { newPlayer -> routingPlayer.switchDelegate(newPlayer) },
+            onAudioSessionIdChanged = { _, audioSessionId ->
                 if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
                     setupAudioEffects(audioSessionId)
                 }
             }
+        )
 
+        routingPlayer = RoutingPlayer(
+            initial = crossfadePlayerController.canonicalPlayer(),
+            onNavigationCommand = { crossfadePlayerController.cancelActiveCrossfade() },
+            onRelease = { crossfadePlayerController.release() }
+        )
+
+        routingPlayer.player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
                     mainHandler.removeCallbacks(checkPlaybackRunnable)
@@ -101,19 +99,15 @@ class MusicService : MediaSessionService() {
 
                 val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
                 val gapless = prefs.getBoolean("gapless_playback", true)
-                
-                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !gapless) {
-                    player?.pause()
-                    mainHandler.postDelayed({
-                        player?.play()
-                    }, 1000)
-                }
-                
                 val crossfadeDurationSec = prefs.getInt("crossfade_duration", 0)
-                if (crossfadeDurationSec > 0) {
-                    player?.volume = 0f
-                } else {
-                    player?.volume = 1.0f
+
+                // Deliberate, user-requested breathing room between tracks - orthogonal to true
+                // gapless/crossfade, which is why it stays gated to crossfade being off: a fade
+                // that's already in progress must never be followed by an artificial pause.
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && !gapless && crossfadeDurationSec == 0) {
+                    val canonical = crossfadePlayerController.canonicalPlayer()
+                    canonical.pause()
+                    mainHandler.postDelayed({ canonical.play() }, 1000)
                 }
             }
         })
@@ -130,66 +124,88 @@ class MusicService : MediaSessionService() {
             android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        mediaSession = MediaSession.Builder(this, player!!)
+        mediaSession = MediaSession.Builder(this, routingPlayer.player)
             .setSessionActivity(pendingIntent)
             .build()
     }
 
+    @OptIn(UnstableApi::class)
+    private fun buildRenderersFactory(processor: MonoAudioProcessor): RenderersFactory {
+        return object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: android.content.Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): androidx.media3.exoplayer.audio.AudioSink? {
+                val processors = arrayOf<androidx.media3.common.audio.AudioProcessor>(processor)
+                return DefaultAudioSink.Builder(context)
+                    .setAudioProcessors(processors)
+                    .build()
+            }
+        }
+    }
+
     private fun setupAudioEffects(audioSessionId: Int) {
         try {
-            equalizer?.release()
-            bassBoost?.release()
-            
-            equalizer = android.media.audiofx.Equalizer(0, audioSessionId).apply {
-                enabled = true
-            }
-            
-            // Save hardware bands info for UI
-            equalizer?.let { eq ->
-                val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
-                val bandsCount = eq.numberOfBands.toInt()
-                prefs.edit().apply {
-                    putInt("eq_hardware_bands_count", bandsCount)
-                    for (i in 0 until bandsCount) {
-                        val freqHz = eq.getCenterFreq(i.toShort()) / 1000
-                        putInt("eq_hardware_band_freq_$i", freqHz)
-                    }
-                }.apply()
+            effectsBySessionId[audioSessionId]?.let {
+                it.equalizer?.release()
+                it.bassBoost?.release()
             }
 
-            bassBoost = android.media.audiofx.BassBoost(0, audioSessionId).apply {
+            val equalizer = android.media.audiofx.Equalizer(0, audioSessionId).apply {
                 enabled = true
             }
-            reloadAudioEffects()
+
+            // Save hardware bands info for UI
+            val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
+            val bandsCount = equalizer.numberOfBands.toInt()
+            prefs.edit().apply {
+                putInt("eq_hardware_bands_count", bandsCount)
+                for (i in 0 until bandsCount) {
+                    val freqHz = equalizer.getCenterFreq(i.toShort()) / 1000
+                    putInt("eq_hardware_band_freq_$i", freqHz)
+                }
+            }.apply()
+
+            val bassBoost = android.media.audiofx.BassBoost(0, audioSessionId).apply {
+                enabled = true
+            }
+
+            effectsBySessionId[audioSessionId] = AudioEffectsPair(equalizer, bassBoost)
+            reloadAudioEffectsFor(equalizer, bassBoost)
         } catch (e: Exception) {
             AppLogger.e("MusicService", "Failed to set up audio effects", e)
         }
     }
 
+    private fun reloadAudioEffectsFor(eq: android.media.audiofx.Equalizer?, bb: android.media.audiofx.BassBoost?) {
+        val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
+        val eqEnabled = prefs.getBoolean("eq_enabled", false)
+
+        eq?.let {
+            it.enabled = eqEnabled
+            if (eqEnabled) {
+                val bands = it.numberOfBands.toInt()
+                for (i in 0 until bands) {
+                    val level = prefs.getInt("eq_band_$i", 0)
+                    it.setBandLevel(i.toShort(), level.toShort())
+                }
+            }
+        }
+
+        bb?.let {
+            val bbEnabled = prefs.getBoolean("bb_enabled", false)
+            it.enabled = bbEnabled
+            if (bbEnabled) {
+                val strength = prefs.getInt("bb_strength", 0)
+                it.setStrength(strength.toShort())
+            }
+        }
+    }
+
     private fun reloadAudioEffects() {
         try {
-            val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
-            val eqEnabled = prefs.getBoolean("eq_enabled", false)
-            
-            equalizer?.let { eq ->
-                eq.enabled = eqEnabled
-                if (eqEnabled) {
-                    val bands = eq.numberOfBands.toInt()
-                    for (i in 0 until bands) {
-                        val level = prefs.getInt("eq_band_$i", 0)
-                        eq.setBandLevel(i.toShort(), level.toShort())
-                    }
-                }
-            }
-
-            bassBoost?.let { bb ->
-                val bbEnabled = prefs.getBoolean("bb_enabled", false)
-                bb.enabled = bbEnabled
-                if (bbEnabled) {
-                    val strength = prefs.getInt("bb_strength", 0)
-                    bb.setStrength(strength.toShort())
-                }
-            }
+            effectsBySessionId.values.forEach { reloadAudioEffectsFor(it.equalizer, it.bassBoost) }
         } catch (e: Exception) {
             AppLogger.e("MusicService", "Failed to reload audio effects", e)
         }
@@ -199,14 +215,14 @@ class MusicService : MediaSessionService() {
         try {
             val prefs = getSharedPreferences(PrefsKeys.FILE_NAME, MODE_PRIVATE)
             val monoEnabled = prefs.getBoolean("mono_audio", false)
-            monoAudioProcessor.monoEnabled = monoEnabled
+            crossfadePlayerController.setMonoEnabled(monoEnabled)
         } catch (e: Exception) {
             AppLogger.e("MusicService", "Failed to reload playback settings", e)
         }
     }
 
     private fun checkPlaybackProgress() {
-        val p = player ?: return
+        val p = crossfadePlayerController.canonicalPlayer()
         if (!p.isPlaying) return
 
         val currentPosition = p.currentPosition
@@ -221,35 +237,14 @@ class MusicService : MediaSessionService() {
         val automixEnabled = prefs.getBoolean("automix", true)
 
         if (crossfadeDurationSec > 0) {
-            val fadeDurationMs = crossfadeDurationSec * 1000L
-
-            // With a single player (no true dual-track overlap), the fade-out below is what
-            // makes crossfade audible: volume ramps down to 0 by the natural end of the track,
-            // and the next item then starts via the normal auto transition. The manual "automix"
-            // early-seek (used to skip trailing silence when crossfade is off) is skipped here:
-            // triggering it during the fade window would cut the fade-out short at whatever
-            // level it had reached, producing an audible jump instead of a smooth fade.
-
-            // Crossfade volume
-            if (duration - currentPosition <= fadeDurationMs) {
-                // Fade out
-                val fadeOutFactor = (duration - currentPosition).toFloat() / fadeDurationMs
-                p.volume = fadeOutFactor.coerceIn(0f, 1f)
-            } else if (currentPosition < fadeDurationMs) {
-                // Fade in
-                val fadeInFactor = currentPosition.toFloat() / fadeDurationMs
-                p.volume = fadeInFactor.coerceIn(0f, 1f)
-            } else {
-                p.volume = 1.0f
-            }
-        } else {
-            // No crossfade, check automix
-            if (automixEnabled && !hasAutomixedCurrentTrack && p.hasNextMediaItem() && (duration - currentPosition <= 3000L)) {
-                hasAutomixedCurrentTrack = true
-                p.seekToNextMediaItem()
-                return
-            }
-            p.volume = 1.0f
+            // True overlap crossfade: both tracks are genuinely audible together, handled by
+            // CrossfadePlayerController via a second ExoPlayer. Automix (early-seek to skip
+            // trailing silence) is mutually exclusive with crossfade - triggering it during an
+            // overlap window would cut the fade short instead of letting it complete.
+            crossfadePlayerController.scheduleCrossfadeCheck(crossfadeDurationSec)
+        } else if (automixEnabled && !hasAutomixedCurrentTrack && p.hasNextMediaItem() && (duration - currentPosition <= 3000L)) {
+            hasAutomixedCurrentTrack = true
+            p.seekToNextMediaItem()
         }
     }
 
@@ -310,15 +305,14 @@ class MusicService : MediaSessionService() {
     override fun onDestroy() {
         mainHandler.removeCallbacks(checkPlaybackRunnable)
         serviceScope.cancel()
-        equalizer?.release()
-        bassBoost?.release()
-        equalizer = null
-        bassBoost = null
-        mediaSession?.run {
-            player.release()
-            release()
-            mediaSession = null
+        effectsBySessionId.values.forEach {
+            it.equalizer?.release()
+            it.bassBoost?.release()
         }
+        effectsBySessionId.clear()
+        crossfadePlayerController.release()
+        mediaSession?.release()
+        mediaSession = null
         super.onDestroy()
     }
 }
