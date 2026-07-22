@@ -148,16 +148,9 @@ fun ProfileSettingsScreen(
 
     // Guards against rapid repeated taps racing sub-page navigation/back/dismiss actions in this
     // screen, mirroring SpotifyScaffold's guardedNav (this screen has its own back-handling scope
-    // with no access to that one).
-    var lastSettingsNavActionTime by remember { mutableStateOf(0L) }
-    val settingsNavGuardMs = 400L
-    fun guardedSettingsNav(action: () -> Unit) {
-        val now = System.currentTimeMillis()
-        if (now - lastSettingsNavActionTime >= settingsNavGuardMs) {
-            lastSettingsNavActionTime = now
-            action()
-        }
-    }
+    // with no access to that one). See rememberActionGuard for why this locks on the action
+    // settling rather than a fixed time window.
+    val guardedSettingsNav = rememberActionGuard(activeSubPage)
 
     // Intercept system back gestures on sub-pages
     BackHandler(enabled = activeSubPage != null) {
@@ -223,16 +216,18 @@ fun ProfileSettingsScreen(
                     DarkPillButton(
                         text = "Save",
                         onClick = {
-                            if (isFormValid) {
-                                val finalPath = when (pathType) {
-                                    "Music Presets" -> "Music"
-                                    "Downloads Folder" -> "Download"
-                                    "Entire Storage" -> ""
-                                    else -> customPathInput.trim()
+                            guardedSettingsNav {
+                                if (isFormValid) {
+                                    val finalPath = when (pathType) {
+                                        "Music Presets" -> "Music"
+                                        "Downloads Folder" -> "Download"
+                                        "Entire Storage" -> ""
+                                        else -> customPathInput.trim()
+                                    }
+                                    viewModel.updateProfile(newName.trim(), finalPath)
+                                    viewModel.updateTheme(selectedThemePreset, selectedIsDark, selectedCustomColor)
+                                    onDismiss(true)
                                 }
-                                viewModel.updateProfile(newName.trim(), finalPath)
-                                viewModel.updateTheme(selectedThemePreset, selectedIsDark, selectedCustomColor)
-                                onDismiss(true)
                             }
                         },
                         enabled = isFormValid,

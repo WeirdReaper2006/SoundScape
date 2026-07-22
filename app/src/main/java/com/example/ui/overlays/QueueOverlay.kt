@@ -105,16 +105,10 @@ fun QueueOverlay(
 
     // Guards against rapid repeated taps on the same row's move/remove buttons: the queue
     // mutates (and rows shift) between the first tap landing and recomposition, so a fast
-    // second tap can otherwise act on a stale realIndex pointing at a different song.
-    var lastQueueActionTime by remember { mutableStateOf(0L) }
-    val queueActionGuardMs = 400L
-    fun guardedQueueAction(action: () -> Unit) {
-        val now = System.currentTimeMillis()
-        if (now - lastQueueActionTime >= queueActionGuardMs) {
-            lastQueueActionTime = now
-            action()
-        }
-    }
+    // second tap can otherwise act on a stale realIndex pointing at a different song. See
+    // rememberActionGuard for why this locks on the action settling rather than a fixed time
+    // window.
+    val guardedQueueAction = rememberActionGuard(queue, currentIndex)
 
     Column(
         modifier = Modifier
@@ -129,7 +123,7 @@ fun QueueOverlay(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onDismiss) {
+            IconButton(onClick = { guardedQueueAction(onDismiss) }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Close", tint = ThemeWhite)
             }
             Spacer(modifier = Modifier.width(12.dp))

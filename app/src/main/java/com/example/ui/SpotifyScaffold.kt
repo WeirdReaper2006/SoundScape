@@ -114,16 +114,12 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     // Guards against rapid repeated taps across navigate/pop/drawer-toggle/tab-switch actions.
     // Without this, spamming taps across the sidebar, bottom tabs, and playlist navigation can
     // fire overlapping mutations to the nav back stack, activeTabIndex, and drawerState at once,
-    // leaving them out of sync and the screen stuck blank.
-    var lastNavActionTime by remember { mutableStateOf(0L) }
-    val navGuardMs = 400L
-    fun guardedNav(action: () -> Unit) {
-        val now = System.currentTimeMillis()
-        if (now - lastNavActionTime >= navGuardMs) {
-            lastNavActionTime = now
-            action()
-        }
-    }
+    // leaving them out of sync and the screen stuck blank. See rememberActionGuard for why this
+    // locks on the action settling rather than a fixed time window.
+    val guardedNav = rememberActionGuard(
+        currentRoute, viewModel.activeTabIndex, drawerState.isOpen,
+        isExpandedPlayerVisible, showQueueOverlay, showProfileSettingsDialog
+    )
 
     // Bridges the legacy showRecentsPage flag (still flipped by HomeScreen's "Recently Played"
     // row) onto the nav back stack without needing to touch HomeScreen.
@@ -373,29 +369,35 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
 
         // Add to Playlist Dialog
         viewModel.showAddToPlaylistDialog?.let { song ->
+            val guardedAddToPlaylist = rememberActionGuard(viewModel.showAddToPlaylistDialog, showCreatePlaylistDialog)
             AddToPlaylistDialog(
                 song = song,
                 playlists = playlists,
-                onDismiss = { viewModel.showAddToPlaylistDialog = null },
+                onDismiss = { guardedAddToPlaylist { viewModel.showAddToPlaylistDialog = null } },
                 onPlaylistSelected = { playlistId ->
-                    viewModel.addSongToPlaylist(playlistId, song)
-                    viewModel.showAddToPlaylistDialog = null
-                    Toast.makeText(context, "Added to playlist!", Toast.LENGTH_SHORT).show()
+                    guardedAddToPlaylist {
+                        viewModel.addSongToPlaylist(playlistId, song)
+                        viewModel.showAddToPlaylistDialog = null
+                        Toast.makeText(context, "Added to playlist!", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onCreateNewPlaylist = {
-                    showCreatePlaylistDialog = true
+                    guardedAddToPlaylist { showCreatePlaylistDialog = true }
                 }
             )
         }
 
         // Create Playlist Dialog
         if (showCreatePlaylistDialog) {
+            val guardedCreatePlaylist = rememberActionGuard(showCreatePlaylistDialog)
             CreatePlaylistDialog(
-                onDismiss = { showCreatePlaylistDialog = false },
+                onDismiss = { guardedCreatePlaylist { showCreatePlaylistDialog = false } },
                 onConfirm = { name ->
-                    viewModel.createPlaylist(name)
-                    showCreatePlaylistDialog = false
-                    Toast.makeText(context, "Playlist created!", Toast.LENGTH_SHORT).show()
+                    guardedCreatePlaylist {
+                        viewModel.createPlaylist(name)
+                        showCreatePlaylistDialog = false
+                        Toast.makeText(context, "Playlist created!", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }
@@ -449,30 +451,35 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
 
         // Edit Metadata Override Dialog
         viewModel.showEditTagsDialog?.let { song ->
+            val guardedEditTags = rememberActionGuard(viewModel.showEditTagsDialog)
             EditSongTagsDialog(
                 song = song,
-                onDismiss = { viewModel.showEditTagsDialog = null },
+                onDismiss = { guardedEditTags { viewModel.showEditTagsDialog = null } },
                 onConfirm = { title, artist, album ->
-                    viewModel.saveSongOverride(song.id, title, artist, album)
-                    viewModel.showEditTagsDialog = null
-                    Toast.makeText(context, "Metadata overridden successfully!", Toast.LENGTH_SHORT).show()
+                    guardedEditTags {
+                        viewModel.saveSongOverride(song.id, title, artist, album)
+                        viewModel.showEditTagsDialog = null
+                        Toast.makeText(context, "Metadata overridden successfully!", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
         }
 
         // Import M3U Playlist Dialog
         if (viewModel.showImportM3UDialog) {
+            val guardedImportM3U = rememberActionGuard(viewModel.showImportM3UDialog)
             ImportM3UDialog(
                 viewModel = viewModel,
-                onDismiss = { viewModel.showImportM3UDialog = false }
+                onDismiss = { guardedImportM3U { viewModel.showImportM3UDialog = false } }
             )
         }
 
         // Global Equalizer Dialog
         if (viewModel.showEqualizerDialogGlobally) {
+            val guardedEqualizer = rememberActionGuard(viewModel.showEqualizerDialogGlobally)
             EqualizerDialog(
                 viewModel = viewModel,
-                onDismiss = { viewModel.showEqualizerDialogGlobally = false }
+                onDismiss = { guardedEqualizer { viewModel.showEqualizerDialogGlobally = false } }
             )
         }
     }
