@@ -62,6 +62,15 @@ data class SongOverrideEntity(
     val album: String
 )
 
+@Entity(tableName = "lyrics_cache")
+data class LyricsEntity(
+    @PrimaryKey val songId: String,
+    val source: String, // "LRCLIB" | "NOT_FOUND" - the only cache-worthy sources
+    val syncedLrcText: String?,
+    val plainText: String?,
+    val fetchedAt: Long
+)
+
 @Entity(tableName = "recent_plays")
 data class RecentPlayEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -125,6 +134,12 @@ interface MusicDao {
 
     @Query("DELETE FROM recent_plays WHERE songId = :songId AND timestamp >= :startOfDay")
     fun deleteRecentPlayForSongOnDay(songId: String, startOfDay: Long)
+
+    @Query("SELECT * FROM lyrics_cache WHERE songId = :songId")
+    fun getLyrics(songId: String): LyricsEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun upsertLyrics(entity: LyricsEntity)
 }
 
 /**
@@ -173,15 +188,36 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/**
+ * lyrics_cache is a brand new table with no existing data or FK concerns, so unlike
+ * MIGRATION_2_3 this is a plain additive migration - no rebuild-table dance needed.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS lyrics_cache (
+                songId TEXT NOT NULL PRIMARY KEY,
+                source TEXT NOT NULL,
+                syncedLrcText TEXT,
+                plainText TEXT,
+                fetchedAt INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+}
+
 @Database(
     entities = [
         FavoriteEntity::class,
         PlaylistEntity::class,
         PlaylistSongCrossRef::class,
         SongOverrideEntity::class,
-        RecentPlayEntity::class
+        RecentPlayEntity::class,
+        LyricsEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -202,7 +238,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // Any future version bump without a real Migration now fails loudly
                 // during development instead of silently deleting user data.
                 .fallbackToDestructiveMigrationFrom(1)
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .build()
                     .also { INSTANCE = it }
             }

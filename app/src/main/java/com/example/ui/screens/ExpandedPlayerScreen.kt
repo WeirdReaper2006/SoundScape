@@ -73,6 +73,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -88,13 +89,24 @@ import com.example.ui.theme.SoundScapeShapes
 import com.example.ui.theme.SoundScapeType
 import com.example.ui.theme.mediumShadow
 import com.example.ui.components.CircularPlayButton
+import com.example.ui.viewmodel.LyricsUiState
 @Composable
 fun ExpandedPlayerScreen(
     song: Song,
     viewModel: MusicViewModel,
     onMinimize: () -> Unit,
-    onViewQueueClick: () -> Unit
+    onViewQueueClick: () -> Unit,
+    onExpandLyricsClick: () -> Unit = {}
 ) {
+    // A lyrics view is "visible" for the whole time this screen is composed (the inline panel
+    // below), which also keeps the finer-grained position ticker driving LyricsOverlay's
+    // auto-scroll running whenever the overlay is reachable, without the overlay needing its own
+    // separate visibility hook.
+    DisposableEffect(Unit) {
+        viewModel.setLyricsViewVisible(true)
+        onDispose { viewModel.setLyricsViewVisible(false) }
+    }
+
     val statePosition = viewModel.currentPlaybackPosition
     val stateDuration = viewModel.currentTrackDuration
     val isPlaying = viewModel.isPlaying
@@ -316,6 +328,8 @@ fun ExpandedPlayerScreen(
             Text(text = stampTotal, color = SpotifyTextSecondary, style = SoundScapeType.small)
         }
 
+        LyricsPanel(viewModel = viewModel, onExpandClick = onExpandLyricsClick)
+
         Spacer(modifier = Modifier.weight(0.1f))
 
         // Player controls line (shuffle, skip-prev, play/pause, skip-next, repeat)
@@ -531,6 +545,63 @@ fun ExpandedPlayerScreen(
         }
 
         Spacer(modifier = Modifier.weight(0.15f))
+    }
+}
+
+/**
+ * Compact lyrics preview: the current line, centered, tap to expand into [LyricsOverlay]. Hides
+ * entirely (rather than showing an empty box) when there's nothing to show, matching Spotify's
+ * own behavior of omitting the lyrics affordance for songs without lyrics. A short delay before
+ * showing the loading placeholder avoids a loading flash for the common fast-path case (embedded
+ * tag or local .lrc file), which usually resolves near-instantly.
+ */
+@Composable
+private fun LyricsPanel(viewModel: MusicViewModel, onExpandClick: () -> Unit) {
+    val lyricsState = viewModel.lyricsState
+    val activeLineIndex = viewModel.activeLyricLineIndex
+
+    var showLoadingPlaceholder by remember { mutableStateOf(false) }
+    LaunchedEffect(lyricsState) {
+        showLoadingPlaceholder = false
+        if (lyricsState is LyricsUiState.Loading) {
+            delay(400)
+            if (viewModel.lyricsState is LyricsUiState.Loading) {
+                showLoadingPlaceholder = true
+            }
+        }
+    }
+
+    val displayText = when (val state = lyricsState) {
+        is LyricsUiState.Synced -> state.lines.getOrNull(activeLineIndex)?.text?.ifBlank { null }
+        is LyricsUiState.PlainOnly -> state.text.lineSequence().firstOrNull { it.isNotBlank() }
+        LyricsUiState.Loading -> if (showLoadingPlaceholder) "Loading lyrics…" else null
+        LyricsUiState.NotFoundState, LyricsUiState.OfflineUnavailable, LyricsUiState.Idle -> null
+    } ?: return
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+            .clip(SoundScapeShapes.subtle)
+            .clickable(onClick = onExpandClick)
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        AnimatedContent(
+            targetState = displayText,
+            transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
+            label = "LyricsPanelLine"
+        ) { text ->
+            Text(
+                text = text,
+                color = ThemeWhite,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

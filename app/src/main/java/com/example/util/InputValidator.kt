@@ -15,6 +15,9 @@ object InputValidator {
 
     private val NAME_REGEX = Regex("^[\\p{L}\\p{N} '_-]+$")
     private val CONTROL_CHAR_REGEX = Regex("[\\p{Cntrl}]")
+    // Same as CONTROL_CHAR_REGEX but keeps newlines - lyric text is legitimately multi-line,
+    // unlike the single-line metadata fields CONTROL_CHAR_REGEX is designed for.
+    private val LYRICS_CONTROL_CHAR_REGEX = Regex("[\\p{Cntrl}&&[^\n]]")
     private val FILESYSTEM_UNSAFE_REGEX = Regex("[\\\\/:*?\"<>|]")
     private val FOLDER_SEGMENT_UNSAFE_REGEX = Regex("[\\\\:*?\"<>|]")
     private val AUDIO_EXTENSIONS = setOf(
@@ -28,6 +31,7 @@ object InputValidator {
     private const val METADATA_FIELD_MAX_LENGTH = 200
     private const val SEARCH_QUERY_MAX_LENGTH = 200
     private const val MEDIA_PATH_MAX_LENGTH = 1024
+    private const val LYRICS_TEXT_MAX_LENGTH = 50_000
 
     /** Listener / profile display name. */
     fun validateName(value: String): ValidationResult {
@@ -111,6 +115,17 @@ object InputValidator {
      */
     fun sanitizeUntrustedMetadataField(value: String): String {
         return CONTROL_CHAR_REGEX.replace(value, " ").trim().take(METADATA_FIELD_MAX_LENGTH)
+    }
+
+    /**
+     * Same treatment as [sanitizeUntrustedMetadataField] but for lyric text pulled from an
+     * embedded tag, a local .lrc sidecar file, or the LRCLIB API - all untrusted external input
+     * rendered as UI text. Unlike metadata fields, lyrics are legitimately multi-line, so
+     * newlines are preserved while other control characters are still stripped, and the length
+     * cap is far larger to fit a full song's worth of text.
+     */
+    fun sanitizeUntrustedLyricsText(value: String): String {
+        return LYRICS_CONTROL_CHAR_REGEX.replace(value, " ").trim().take(LYRICS_TEXT_MAX_LENGTH)
     }
 
     /** Free-text library/search query. */

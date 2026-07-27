@@ -61,6 +61,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // SettingsController for details. MusicViewModel forwards its public surface unchanged.
     private val settingsController = SettingsController(application, onProfileUpdated = { refreshLibrary() })
 
+    // Synced-lyrics resolution and active-line tracking live here; see LyricsController for
+    // details. MusicViewModel forwards its public surface unchanged.
+    private val lyricsController = LyricsController(AppContainer.getLyricsRepository(application), viewModelScope)
+
     // MediaController related
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var mediaController: MediaController? = null
@@ -199,6 +203,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Background progress tracker job
     private var progressTrackingJob: Job? = null
 
+    // Finer-grained progress tracker, active only while a lyrics view is visible - layered on
+    // top of the 1s tracker above (which keeps running for every other screen unchanged).
+    private var fineProgressTrackingJob: Job? = null
+    private var lyricsViewActive = false
+
+    // Synced lyrics (see LyricsController for resolution/priority details).
+    val lyricsState: LyricsUiState get() = lyricsController.lyricsState
+    val activeLyricLineIndex: Int get() = lyricsController.activeLineIndex
+
+    fun setLyricsViewVisible(visible: Boolean) {
+        lyricsViewActive = visible
+        lyricsController.setLyricsViewVisible(visible) { currentPlaybackPosition }
+        if (visible && isPlaying) {
+            startFineProgressTracker()
+        } else {
+            stopFineProgressTracker()
+        }
+    }
+
     init {
         loadProfile()
         settingsController.initEqualizerSettings()
@@ -286,8 +309,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 isPlaying = isPlayingChanged
                 if (isPlayingChanged) {
                     startProgressTracker()
+                    if (lyricsViewActive) startFineProgressTracker()
                 } else {
                     stopProgressTracker()
+                    stopFineProgressTracker()
                 }
             }
 
@@ -321,6 +346,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun updateActiveSong() {
+        val previousSongId = currentPlayingSong?.id
         mediaController?.let { controller ->
             val activeItem = controller.currentMediaItem
             if (activeItem != null) {
@@ -350,6 +376,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 currentQueueIndex = -1
                 currentTrackDuration = 0L
                 currentPlaybackPosition = 0L
+            }
+            if (currentPlayingSong?.id != previousSongId) {
+                lyricsController.onSongChanged(currentPlayingSong)
             }
         }
     }
@@ -839,6 +868,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         progressTrackingJob = null
     }
 
+    private fun startFineProgressTracker() {
+        stopFineProgressTracker()
+        fineProgressTrackingJob = viewModelScope.launch(Dispatchers.Main) {
+            while (isPlaying && lyricsViewActive) {
+                mediaController?.let { controller ->
+                    currentPlaybackPosition = controller.currentPosition.coerceAtLeast(0L)
+                }
+                delay(120)
+            }
+        }
+    }
+
+    private fun stopFineProgressTracker() {
+        fineProgressTrackingJob?.cancel()
+        fineProgressTrackingJob = null
+    }
+
     // ---------------- PREMIUM EQUALIZER & BASS BOOST ----------------
     // Persistence and mutation logic now live in SettingsController; these forward unchanged.
     fun getBandFrequencyLabel(index: Int): String = settingsController.getBandFrequencyLabel(index)
@@ -1087,7 +1133,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         stopProgressTracker()
-        stopProgressTracker()
+        stopFineProgressTracker()
         controllerFuture?.let { future ->
             MediaController.releaseFuture(future)
         }

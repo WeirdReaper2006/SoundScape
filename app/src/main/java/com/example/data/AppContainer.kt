@@ -2,6 +2,7 @@ package com.example.data
 
 import android.content.Context
 import com.example.data.db.AppDatabase
+import com.example.data.repository.LyricsRepository
 import com.example.data.repository.MusicRepository
 
 /**
@@ -21,6 +22,18 @@ object AppContainer {
                 context.applicationContext,
                 AppDatabase.getDatabase(context).musicDao()
             ).also { repository = it }
+        }
+    }
+
+    @Volatile
+    private var lyricsRepository: LyricsRepository? = null
+
+    fun getLyricsRepository(context: Context): LyricsRepository {
+        return lyricsRepository ?: synchronized(this) {
+            lyricsRepository ?: LyricsRepository(
+                context.applicationContext,
+                AppDatabase.getDatabase(context).musicDao()
+            ).also { lyricsRepository = it }
         }
     }
 }

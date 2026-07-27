@@ -99,6 +99,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
 
     var showProfileSettingsDialog by remember { mutableStateOf(false) }
     var showQueueOverlay by remember { mutableStateOf(false) }
+    var showLyricsOverlay by remember { mutableStateOf(false) }
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -118,7 +119,7 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     // locks on the action settling rather than a fixed time window.
     val guardedNav = rememberActionGuard(
         currentRoute, viewModel.activeTabIndex, drawerState.isOpen,
-        isExpandedPlayerVisible, showQueueOverlay, showProfileSettingsDialog
+        isExpandedPlayerVisible, showQueueOverlay, showLyricsOverlay, showProfileSettingsDialog
     )
 
     // Bridges the legacy showRecentsPage flag (still flipped by HomeScreen's "Recently Played"
@@ -131,9 +132,10 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
     }
 
     // Real-time cohesive back and navigation routing interceptor
-    BackHandler(enabled = drawerState.isOpen || isExpandedPlayerVisible || showQueueOverlay || showProfileSettingsDialog || onNonTabsRoute || viewModel.activeTabIndex != 0) {
+    BackHandler(enabled = drawerState.isOpen || isExpandedPlayerVisible || showQueueOverlay || showLyricsOverlay || showProfileSettingsDialog || onNonTabsRoute || viewModel.activeTabIndex != 0) {
         when {
             drawerState.isOpen -> guardedNav { coroutineScope.launch { drawerState.close() } }
+            showLyricsOverlay -> guardedNav { showLyricsOverlay = false }
             showQueueOverlay -> guardedNav { showQueueOverlay = false }
             showProfileSettingsDialog -> guardedNav {
                 viewModel.previewTheme(viewModel.themePreset, viewModel.themeIsDark, viewModel.themeCustomColor)
@@ -362,7 +364,8 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
                     song = song,
                     viewModel = viewModel,
                     onMinimize = { guardedNav { isExpandedPlayerVisible = false } },
-                    onViewQueueClick = { guardedNav { showQueueOverlay = true } }
+                    onViewQueueClick = { guardedNav { showQueueOverlay = true } },
+                    onExpandLyricsClick = { guardedNav { showLyricsOverlay = true } }
                 )
             }
         }
@@ -446,6 +449,24 @@ fun SpotifyScaffold(viewModel: MusicViewModel) {
             QueueOverlay(
                 viewModel = viewModel,
                 onDismiss = { guardedNav { showQueueOverlay = false } }
+            )
+        }
+
+        // Lyrics Overlay View
+        AnimatedVisibility(
+            visible = showLyricsOverlay,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(350, easing = EaseOutQuart)
+            ),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(350, easing = EaseInQuart)
+            )
+        ) {
+            LyricsOverlay(
+                viewModel = viewModel,
+                onDismiss = { guardedNav { showLyricsOverlay = false } }
             )
         }
 
