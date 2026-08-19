@@ -36,15 +36,23 @@ class CrossfadePlayerController(
     private val monoProcessorA = MonoAudioProcessor()
     private val monoProcessorB = MonoAudioProcessor()
 
+    // WAKE_MODE_LOCAL is what keeps playback alive across a track boundary with the screen off:
+    // the AudioTrack itself only holds the CPU awake while it is actively feeding samples, so the
+    // gap where the next item is being prepared can let the device suspend and never resume -
+    // the transition has already happened, so the session/notification shows the next track sitting
+    // paused until something wakes the CPU. Most visible when listening over Bluetooth, which is
+    // exactly the screen-off case.
     private val playerA: ExoPlayer = ExoPlayer.Builder(context, buildRenderersFactory(monoProcessorA))
         .setAudioAttributes(audioAttributes, true)
         .setHandleAudioBecomingNoisy(true)
         .build()
+        .apply { setWakeMode(C.WAKE_MODE_LOCAL) }
 
     private val playerB: ExoPlayer = ExoPlayer.Builder(context, buildRenderersFactory(monoProcessorB))
         .setAudioAttributes(audioAttributes, true)
         .setHandleAudioBecomingNoisy(true)
         .build()
+        .apply { setWakeMode(C.WAKE_MODE_LOCAL) }
 
     @Volatile private var canonical: ExoPlayer = playerA
     @Volatile private var idle: ExoPlayer = playerB
