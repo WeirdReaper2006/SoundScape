@@ -1,10 +1,17 @@
 package com.example
 
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
+import androidx.media3.common.text.CueGroup
 import androidx.media3.exoplayer.ExoPlayer
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.InvocationTargetException
@@ -92,6 +99,44 @@ class RoutingPlayer(
                 override fun onPlayerError(error: PlaybackException) = forward { it.onPlayerError(error) }
                 override fun onTimelineChanged(timeline: Timeline, reason: Int) =
                     forward { it.onTimelineChanged(timeline, reason) }
+
+                // Everything below is forwarded because MediaSession's own internal
+                // Player.Listener subscribes to all of it - anything not relayed here leaves the
+                // session (and therefore the notification, Bluetooth/AVRCP and Android Auto)
+                // publishing stale state. onPlayWhenReadyChanged in particular is how a pause
+                // caused by audio focus loss reaches the remote controls.
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) =
+                    forward { it.onPlayWhenReadyChanged(playWhenReady, reason) }
+                override fun onPlaybackSuppressionReasonChanged(reason: Int) =
+                    forward { it.onPlaybackSuppressionReasonChanged(reason) }
+                override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) =
+                    forward { it.onMediaMetadataChanged(mediaMetadata) }
+                override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) =
+                    forward { it.onPlaylistMetadataChanged(mediaMetadata) }
+                override fun onTracksChanged(tracks: Tracks) = forward { it.onTracksChanged(tracks) }
+                override fun onIsLoadingChanged(isLoading: Boolean) =
+                    forward { it.onIsLoadingChanged(isLoading) }
+                override fun onAvailableCommandsChanged(availableCommands: Player.Commands) =
+                    forward { it.onAvailableCommandsChanged(availableCommands) }
+                override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) =
+                    forward { it.onTrackSelectionParametersChanged(parameters) }
+                override fun onAudioAttributesChanged(audioAttributes: AudioAttributes) =
+                    forward { it.onAudioAttributesChanged(audioAttributes) }
+                override fun onVolumeChanged(volume: Float) = forward { it.onVolumeChanged(volume) }
+                override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) =
+                    forward { it.onDeviceInfoChanged(deviceInfo) }
+                override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) =
+                    forward { it.onDeviceVolumeChanged(volume, muted) }
+                override fun onMaxSeekToPreviousPositionChanged(maxSeekToPreviousPositionMs: Long) =
+                    forward { it.onMaxSeekToPreviousPositionChanged(maxSeekToPreviousPositionMs) }
+                override fun onSeekBackIncrementChanged(seekBackIncrementMs: Long) =
+                    forward { it.onSeekBackIncrementChanged(seekBackIncrementMs) }
+                override fun onSeekForwardIncrementChanged(seekForwardIncrementMs: Long) =
+                    forward { it.onSeekForwardIncrementChanged(seekForwardIncrementMs) }
+                override fun onVideoSizeChanged(videoSize: VideoSize) =
+                    forward { it.onVideoSizeChanged(videoSize) }
+                override fun onRenderedFirstFrame() = forward { it.onRenderedFirstFrame() }
+                override fun onCues(cueGroup: CueGroup) = forward { it.onCues(cueGroup) }
             }
             internalListener = listener
             delegate.addListener(listener)
